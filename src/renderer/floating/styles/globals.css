@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* shadcn dark theme tokens (HSL components, no commas) */
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 5%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 6% 10%;
+    --secondary: 240 4% 16%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 4% 16%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 4% 16%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 63% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 4% 18%;
+    --input: 240 4% 18%;
+    --ring: 240 5% 65%;
+    --radius: 0.75rem;
+
+    /* Phase color (RGB triplets, JS sets these dynamically) */
+    --phase-r: 255;
+    --phase-g: 77;
+    --phase-b: 77;
+  }
+
+  * { border-color: hsl(var(--border)); }
+  html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    background: transparent;
+    color: hsl(var(--foreground));
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-app-region: no-drag;
+  }
+}
+
+@layer components {
+  /* ─── Liquid Glass surface (Apple macOS 15 Sequoia design language) ─── */
+  /* The BrowserWindow uses Electron `vibrancy: 'sidebar'` (dark NSVisualEffectView
+     material — same as Notification Center). On top we paint:
+     · slight dark tint so white text always has contrast
+     · stronger backdrop-filter for the "deep frosted glass" feel
+     · bright top specular rim (the signature Liquid Glass gleam)
+     · thin white border for crisp edge definition
+     · phase-tinted ambient glow when timer is running
+     · saturated wallpaper colors bleed through via saturate(1.8) */
+  .spotlight-surface {
+    background: rgba(20, 20, 28, 0.55);
+    backdrop-filter: blur(32px) saturate(1.8);
+    -webkit-backdrop-filter: blur(32px) saturate(1.8);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-top-color: rgba(255, 255, 255, 0.28);
+    box-shadow:
+      /* Liquid Glass top specular — bright gleam like light hitting curved glass */
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.55),
+      /* Inner lift — subtle horizontal highlight */
+      inset 0 0 28px rgba(255, 255, 255, 0.04),
+      /* Bottom inner shadow — adds depth */
+      inset 0 -1px 0 rgba(0, 0, 0, 0.30),
+      /* Drop shadow — anchors the surface against the wallpaper */
+      0 10px 32px rgba(0, 0, 0, 0.38),
+      0 2px 6px rgba(0, 0, 0, 0.18);
+  }
+
+  .spotlight-surface.is-running {
+    box-shadow:
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.55),
+      inset 0 0 28px rgba(255, 255, 255, 0.04),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.30),
+      0 10px 32px rgba(0, 0, 0, 0.38),
+      0 2px 6px rgba(0, 0, 0, 0.18),
+      /* Phase-tinted ambient halo — wider than before for proper "glow" feel */
+      0 0 30px 4px rgba(var(--phase-r), var(--phase-g), var(--phase-b), 0.30),
+      0 0 60px 12px rgba(var(--phase-r), var(--phase-g), var(--phase-b), 0.12);
+  }
+
+  /* ─── Apple HIG: prefers-reduced-transparency fallback ─────────────────
+     "People can turn on accessibility settings that reduce transparency or
+     motion in the interface. These settings can remove or modify certain
+     effects." When this is on, drop the backdrop-filter (which is also
+     expensive) and serve a near-opaque dark surface. */
+  @media (prefers-reduced-transparency: reduce) {
+    .spotlight-surface {
+      background: rgba(20, 20, 28, 0.95);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+
+  /* Scroll-edge effect: an 8px gradient at the top of expanded panels
+     fades content scrolling beneath the bar header — Apple uses this
+     same pattern on iOS toolbars to maintain control legibility. */
+  .scroll-edge-top {
+    mask-image: linear-gradient(to bottom, transparent 0, #000 8px);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px);
+  }
+
+  /* Grouped toolbar items (Apple HIG: "Group items that perform similar
+     actions"). Each segment gets a shared subtle background; spacers
+     between segments separate functional groups. */
+  .toolbar-segment {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+  }
+
+  .drag-region { -webkit-app-region: drag; }
+  .no-drag { -webkit-app-region: no-drag; }
+
+  /* Phase-tinted accents */
+  .phase-text { color: rgb(var(--phase-r) var(--phase-g) var(--phase-b)); }
+  .phase-bg-soft { background: rgba(var(--phase-r), var(--phase-g), var(--phase-b), 0.14); }
+  .phase-border { border-color: rgba(var(--phase-r), var(--phase-g), var(--phase-b), 0.35); }
+  .phase-glow { box-shadow: 0 0 20px rgba(var(--phase-r), var(--phase-g), var(--phase-b), 0.35); }
+
+  /* Scrollbar polish */
+  .pretty-scroll::-webkit-scrollbar { width: 8px; }
+  .pretty-scroll::-webkit-scrollbar-track { background: transparent; }
+  .pretty-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
+  .pretty-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+}
