@@ -3,11 +3,13 @@ import type { AcademicDeadline, AttentionAlert, Capture, ConfusionItem, Course, 
 import { Editor } from './Editor'
 import { ipc } from '@shared/ipc-client'
 import {
+  BarChart3,
   Bell,
   BookOpen,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
+  Clock3,
   Circle,
   ClipboardList,
   FileText,
@@ -17,12 +19,14 @@ import {
   LayoutDashboard,
   MoreHorizontal,
   PanelTop,
+  PenLine,
   Play,
   Search,
   Settings,
   Share2,
   Sparkles,
   Target,
+  Upload,
   Zap,
 } from 'lucide-react'
 
@@ -191,14 +195,14 @@ export default function App() {
     await refresh()
   }
 
-  const tools: Array<{ id: WorkspaceTool; label: string; icon: React.ReactNode; action?: () => Promise<void> | void }> = [
+  const tools: Array<{ id: WorkspaceTool; label: string; icon: React.ReactNode }> = [
     { id: 'today', label: 'Today', icon: <PanelTop size={14} /> },
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
-    { id: 'quiz', label: 'Quiz', icon: <HelpCircle size={14} />, action: createQuizNote },
-    { id: 'flashcards', label: 'Flashcards', icon: <ClipboardList size={14} />, action: createFlashcard },
-    { id: 'assignment', label: 'Assignment Parser', icon: <Sparkles size={14} />, action: parseAssignment },
-    { id: 'syllabus', label: 'Syllabus Import', icon: <FileText size={14} />, action: parseSyllabus },
-    { id: 'class', label: 'Class Mode', icon: <GraduationCap size={14} />, action: startClass },
+    { id: 'quiz', label: 'Quiz', icon: <HelpCircle size={14} /> },
+    { id: 'flashcards', label: 'Flashcards', icon: <ClipboardList size={14} /> },
+    { id: 'assignment', label: 'Assignment Parser', icon: <Sparkles size={14} /> },
+    { id: 'syllabus', label: 'Syllabus Import', icon: <FileText size={14} /> },
+    { id: 'class', label: 'Class Mode', icon: <GraduationCap size={14} /> },
   ]
 
   return (
@@ -218,7 +222,7 @@ export default function App() {
           </button>
           <nav className="studydesk-ribbon" aria-label="Workspace tools">
             {tools.map(tool => (
-              <button key={tool.id} className={activeTool === tool.id ? 'active' : ''} onClick={async () => { setActiveTool(tool.id); await tool.action?.() }}>
+              <button key={tool.id} className={activeTool === tool.id ? 'active' : ''} onClick={() => setActiveTool(tool.id)}>
                 {tool.icon}
                 <span>{tool.label}</span>
               </button>
@@ -274,10 +278,26 @@ export default function App() {
           </aside>
 
           <main className="studydesk-main">
-            {activeTool === 'assignment'
-              ? <AssignmentParserView selected={selected} selectedText={selectedText} onParse={parseAssignment} />
-              : <DocumentWorkspace selected={selected} captures={captures} currentCourse={currentCourse} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} />
-            }
+            <WorkspaceSurface
+              activeTool={activeTool}
+              selected={selected}
+              selectedText={selectedText}
+              captures={captures}
+              courses={courses.length ? courses : fallbackCourses}
+              deadlines={orderedDeadlines.length ? orderedDeadlines : fallbackDeadlines}
+              studyItems={studyItems.length ? studyItems : fallbackStudy}
+              confusions={confusions.length ? confusions : fallbackQuestions}
+              alerts={alerts.length ? alerts : fallbackAlerts}
+              currentCourse={currentCourse}
+              onUpdate={handleUpdate}
+              onDelete={handleDelete}
+              onCreate={handleCreate}
+              onCreateQuiz={createQuizNote}
+              onCreateFlashcard={createFlashcard}
+              onParseAssignment={parseAssignment}
+              onParseSyllabus={parseSyllabus}
+              onStartClass={startClass}
+            />
           </main>
 
           <aside className="studydesk-action-rail">
@@ -311,6 +331,64 @@ export default function App() {
       </div>
     </div>
   )
+}
+
+function WorkspaceSurface({
+  activeTool,
+  selected,
+  selectedText,
+  captures,
+  courses,
+  deadlines,
+  studyItems,
+  confusions,
+  alerts,
+  currentCourse,
+  onUpdate,
+  onDelete,
+  onCreate,
+  onCreateQuiz,
+  onCreateFlashcard,
+  onParseAssignment,
+  onParseSyllabus,
+  onStartClass,
+}: {
+  activeTool: WorkspaceTool
+  selected: Note | null
+  selectedText: string
+  captures: Capture[]
+  courses: Course[]
+  deadlines: AcademicDeadline[]
+  studyItems: StudyItem[]
+  confusions: ConfusionItem[]
+  alerts: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>[]
+  currentCourse?: Course
+  onUpdate: (id: string, patch: Partial<Note>) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+  onCreate: (type?: Note['documentType']) => Promise<void>
+  onCreateQuiz: () => Promise<void>
+  onCreateFlashcard: () => Promise<void>
+  onParseAssignment: () => Promise<void>
+  onParseSyllabus: () => Promise<void>
+  onStartClass: () => Promise<void>
+}) {
+  switch (activeTool) {
+    case 'dashboard':
+      return <DashboardView courses={courses} deadlines={deadlines} studyItems={studyItems} alerts={alerts} />
+    case 'quiz':
+      return <QuizView selected={selected} selectedText={selectedText} studyItems={studyItems} onCreateQuiz={onCreateQuiz} />
+    case 'flashcards':
+      return <FlashcardsView selectedText={selectedText} studyItems={studyItems} onCreateFlashcard={onCreateFlashcard} />
+    case 'assignment':
+      return <AssignmentParserView selected={selected} selectedText={selectedText} onParse={onParseAssignment} />
+    case 'syllabus':
+      return <SyllabusImportView selected={selected} deadlines={deadlines} onCreate={onCreate} onParseSyllabus={onParseSyllabus} />
+    case 'class':
+      return <ClassModeView currentCourse={currentCourse} captures={captures} confusions={confusions} onStartClass={onStartClass} />
+    case 'today':
+    default:
+      return <DocumentWorkspace selected={selected} captures={captures} currentCourse={currentCourse} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} />
+  }
 }
 
 function DocumentWorkspace({
@@ -421,6 +499,220 @@ function AssignmentParserView({ selected, selectedText, onParse }: { selected: N
         </article>
       </div>
     </section>
+  )
+}
+
+function DashboardView({
+  courses,
+  deadlines,
+  studyItems,
+  alerts,
+}: {
+  courses: Course[]
+  deadlines: AcademicDeadline[]
+  studyItems: StudyItem[]
+  alerts: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>[]
+}) {
+  const dueSoon = deadlines.filter(deadline => !deadline.completed).slice(0, 3)
+  return (
+    <section className="phase3-card dashboard-view">
+      <header className="phase3-header">
+        <div>
+          <p className="phase3-eyebrow">Academic dashboard</p>
+          <h1>Today’s operating picture</h1>
+          <span>Courses, deadlines, study queue, and local alerts stay in one glass workspace.</span>
+        </div>
+        <button className="share-button"><BarChart3 size={15} /> Review day</button>
+      </header>
+      <div className="metric-grid">
+        <MetricCard label="Courses" value={courses.length} detail="Active this term" icon={<BookOpen size={20} />} />
+        <MetricCard label="Deadlines" value={deadlines.length} detail="Tracked locally" icon={<CalendarDays size={20} />} />
+        <MetricCard label="Study items" value={studyItems.length} detail="Ready to review" icon={<ClipboardList size={20} />} />
+        <MetricCard label="Alerts" value={alerts.length} detail="Need attention" icon={<Bell size={20} />} />
+      </div>
+      <div className="dashboard-grid">
+        <section className="phase3-panel wide">
+          <h2>Deadline timeline</h2>
+          {dueSoon.map((deadline, index) => (
+            <div className="timeline-row" key={deadline.id}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{deadline.title}</strong>
+                <em>{formatDue(deadline.deadlineAt)}</em>
+              </div>
+              <small>{index === 0 ? 'Due soon' : 'Upcoming'}</small>
+            </div>
+          ))}
+        </section>
+        <section className="phase3-panel">
+          <h2>Course load</h2>
+          {courses.slice(0, 4).map(course => (
+            <div className="compact-row" key={course.id}>
+              <span className="section-icon course-token">{course.code?.slice(0, 2) ?? 'CR'}</span>
+              <div><strong>{course.code ?? course.name}</strong><em>{course.name}</em></div>
+            </div>
+          ))}
+        </section>
+      </div>
+    </section>
+  )
+}
+
+function QuizView({ selected, selectedText, studyItems, onCreateQuiz }: { selected: Note | null; selectedText: string; studyItems: StudyItem[]; onCreateQuiz: () => Promise<void> }) {
+  const prompts = selectedText
+    ? selectedText.split(/[.\n]/).map(line => line.trim()).filter(line => line.length > 24).slice(0, 4)
+    : ['Explain the purpose of the assignment.', 'Identify the strongest source.', 'Define the next revision step.']
+  return (
+    <section className="phase3-card quiz-view">
+      <header className="phase3-header">
+        <div>
+          <p className="phase3-eyebrow">Quiz builder</p>
+          <h1>{selected ? `Quiz from ${selected.title}` : 'Quiz from current document'}</h1>
+          <span>Questions are generated from the selected document and saved as editable study notes.</span>
+        </div>
+        <button className="review-button" onClick={onCreateQuiz}><HelpCircle size={15} /> Create quiz draft</button>
+      </header>
+      <div className="quiz-grid">
+        {prompts.map((prompt, index) => (
+          <article className="quiz-card" key={prompt}>
+            <small>Question {index + 1}</small>
+            <h2>What should you remember about this?</h2>
+            <p>{prompt}</p>
+            <div><span>Short answer</span><strong>{index === 0 ? 'High yield' : 'Practice'}</strong></div>
+          </article>
+        ))}
+      </div>
+      <footer className="phase3-footer">{studyItems.length} study item(s) already available in the queue.</footer>
+    </section>
+  )
+}
+
+function FlashcardsView({ selectedText, studyItems, onCreateFlashcard }: { selectedText: string; studyItems: StudyItem[]; onCreateFlashcard: () => Promise<void> }) {
+  const cards = (studyItems.length ? studyItems : fallbackStudy).slice(0, 6)
+  return (
+    <section className="phase3-card flashcards-view">
+      <header className="phase3-header">
+        <div>
+          <p className="phase3-eyebrow">Flashcards</p>
+          <h1>Review queue</h1>
+          <span>{selectedText ? 'Create a card from the selected document, then review it here.' : 'Select a document to create cards from its content.'}</span>
+        </div>
+        <button className="review-button" onClick={onCreateFlashcard}><ClipboardList size={15} /> Add from document</button>
+      </header>
+      <div className="flashcard-board">
+        {cards.map((item, index) => (
+          <article className="study-card" key={item.id}>
+            <span>Card {index + 1}</span>
+            <h2>{item.front}</h2>
+            <p>{item.back || 'Answer will be added during review.'}</p>
+            <footer><small>{item.type}</small><strong>{item.reviewCount} reviews</strong></footer>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function SyllabusImportView({
+  selected,
+  deadlines,
+  onCreate,
+  onParseSyllabus,
+}: {
+  selected: Note | null
+  deadlines: AcademicDeadline[]
+  onCreate: (type?: Note['documentType']) => Promise<void>
+  onParseSyllabus: () => Promise<void>
+}) {
+  return (
+    <section className="phase3-card syllabus-view">
+      <header className="phase3-header">
+        <div>
+          <p className="phase3-eyebrow">Syllabus import</p>
+          <h1>Extract deadlines and course rules</h1>
+          <span>Use the selected document as syllabus text, then confirm imported deadlines before they enter the workspace.</span>
+        </div>
+        <div className="phase3-actions">
+          <button className="outline-button" onClick={() => onCreate('syllabus')}><Upload size={15} /> New syllabus note</button>
+          <button className="review-button" onClick={onParseSyllabus}><Sparkles size={15} /> Parse syllabus</button>
+        </div>
+      </header>
+      <div className="syllabus-grid">
+        <section className="phase3-panel">
+          <h2>Selected source</h2>
+          <div className="source-preview">
+            <FileText size={22} />
+            <strong>{selected?.title ?? 'No document selected'}</strong>
+            <span>{selected?.documentType ?? 'Choose or create a syllabus note'}</span>
+          </div>
+        </section>
+        <section className="phase3-panel wide">
+          <h2>Imported deadline preview</h2>
+          {deadlines.slice(0, 5).map(deadline => (
+            <div className="timeline-row" key={deadline.id}>
+              <CalendarDays size={16} />
+              <div><strong>{deadline.title}</strong><em>{formatDue(deadline.deadlineAt)}</em></div>
+              <small>{deadline.confirmed ? 'Confirmed' : 'Needs review'}</small>
+            </div>
+          ))}
+        </section>
+      </div>
+    </section>
+  )
+}
+
+function ClassModeView({
+  currentCourse,
+  captures,
+  confusions,
+  onStartClass,
+}: {
+  currentCourse?: Course
+  captures: Capture[]
+  confusions: ConfusionItem[]
+  onStartClass: () => Promise<void>
+}) {
+  return (
+    <section className="phase3-card class-view">
+      <header className="phase3-header">
+        <div>
+          <p className="phase3-eyebrow">Class mode</p>
+          <h1>{currentCourse ? `${currentCourse.code ?? currentCourse.name} session` : 'Live class capture'}</h1>
+          <span>Capture notes, questions, and follow-ups while preserving the same StudyDesk shell.</span>
+        </div>
+        <button className="review-button" onClick={onStartClass}><GraduationCap size={15} /> Start class</button>
+      </header>
+      <div className="class-grid">
+        <section className="phase3-panel wide">
+          <h2>Live capture stream</h2>
+          {(captures.length ? captures : fallbackCaptures).slice(0, 5).map(capture => (
+            <div className="capture-row" key={capture.id}>
+              <PenLine size={16} />
+              <p>{capture.text}</p>
+            </div>
+          ))}
+        </section>
+        <section className="phase3-panel">
+          <h2>Questions to resolve</h2>
+          {(confusions.length ? confusions : fallbackQuestions).slice(0, 4).map(item => (
+            <div className="compact-row" key={item.id}>
+              <HelpCircle size={18} />
+              <div><strong>{item.question}</strong><em>{item.status}</em></div>
+            </div>
+          ))}
+        </section>
+      </div>
+    </section>
+  )
+}
+
+function MetricCard({ label, value, detail, icon }: { label: string; value: number; detail: string; icon: React.ReactNode }) {
+  return (
+    <article className="metric-card">
+      <span>{icon}</span>
+      <div><strong>{value}</strong><em>{label}</em></div>
+      <small>{detail}</small>
+    </article>
   )
 }
 

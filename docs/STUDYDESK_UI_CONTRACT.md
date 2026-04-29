@@ -10,6 +10,7 @@ This contract locks the product architecture for future phases. Any new feature 
 - The left rail owns courses, syllabus imports, assignment prompts, notes, and captures.
 - The central surface owns the current task: editor, assignment parser, quiz, flashcards, syllabus import, dashboard, or class mode.
 - The right rail owns deadlines, checklist progress, study queue, unresolved questions, and local alerts.
+- Phase 3 central surfaces are first-class architecture: Dashboard, Quiz, Flashcards, Syllabus Import, and Class Mode must render inside the same central work surface rather than replacing the shell.
 
 ## Visual Rules
 
@@ -25,4 +26,5 @@ Before ending any future UI phase:
 
 - The app must still show the top HUD, left resource rail, central work surface, and right intelligence rail.
 - The full workspace preview must render at desktop size without overlapping text or clipped controls.
+- Every top navigation tab must route to a visible in-shell workspace surface; tab clicks must not create or mutate data unless the user presses an explicit action button inside the surface.
 - `npm run typecheck`, `npm run build:renderer`, and `npm test` must pass or the failure must be documented with the exact blocker.
