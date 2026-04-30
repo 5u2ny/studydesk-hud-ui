@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import type { AcademicDeadline, AttentionAlert, Capture, ConfusionItem, Course, Note, StudyItem } from '@schema'
+import type { AcademicDeadline, AttentionAlert, Capture, ClassSession, ConfusionItem, Course, Note, StudyItem } from '@schema'
 import { Editor } from './Editor'
 import { ipc } from '@shared/ipc-client'
 import {
@@ -68,11 +68,12 @@ export default function App() {
   const [studyItems, setStudyItems] = useState<StudyItem[]>([])
   const [confusions, setConfusions] = useState<ConfusionItem[]>([])
   const [alerts, setAlerts] = useState<AttentionAlert[]>([])
+  const [classSessions, setClassSessions] = useState<ClassSession[]>([])
   const [activeTool, setActiveTool] = useState<WorkspaceTool>(initialWorkspaceTool)
   const [status, setStatus] = useState('')
 
   async function refresh() {
-    const [noteData, captureData, courseData, deadlineData, studyData, confusionData, alertData] = await Promise.all([
+    const [noteData, captureData, courseData, deadlineData, studyData, confusionData, alertData, classData] = await Promise.all([
       ipc.invoke<Note[]>('notes:list'),
       ipc.invoke<Capture[]>('capture:list', { limit: 80 }),
       ipc.invoke<Course[]>('course:list', {}),
@@ -80,6 +81,7 @@ export default function App() {
       ipc.invoke<StudyItem[]>('study:list', {}),
       ipc.invoke<ConfusionItem[]>('confusion:list', {}),
       ipc.invoke<AttentionAlert[]>('attentionAlerts:list', {}),
+      ipc.invoke<ClassSession[]>('class:list', {}),
     ])
     setNotes(noteData)
     setCaptures(captureData)
@@ -88,6 +90,7 @@ export default function App() {
     setStudyItems(studyData)
     setConfusions(confusionData)
     setAlerts(alertData)
+    setClassSessions(classData)
     setSelected(prev => prev ? noteData.find(n => n.id === prev.id) ?? noteData[0] ?? null : noteData[0] ?? null)
   }
 
@@ -195,6 +198,36 @@ export default function App() {
     await refresh()
   }
 
+  async function completeDeadline(id: string) {
+    await ipc.invoke('deadline:complete', { id })
+    setStatus('Deadline marked complete.')
+    await refresh()
+  }
+
+  async function reviewStudyItem(id: string, difficulty: NonNullable<StudyItem['difficulty']>) {
+    await ipc.invoke('study:review', { id, difficulty })
+    setStatus(`Study item reviewed: ${difficulty}.`)
+    await refresh()
+  }
+
+  async function resolveConfusion(id: string) {
+    await ipc.invoke('confusion:resolve', { id })
+    setStatus('Question marked resolved.')
+    await refresh()
+  }
+
+  async function resolveAlert(id: string) {
+    await ipc.invoke('attentionAlerts:resolve', { id })
+    setStatus('Alert resolved.')
+    await refresh()
+  }
+
+  async function endClassSession(id: string) {
+    await ipc.invoke('class:end', { id })
+    setStatus('Class session ended.')
+    await refresh()
+  }
+
   const tools: Array<{ id: WorkspaceTool; label: string; icon: React.ReactNode }> = [
     { id: 'today', label: 'Today', icon: <PanelTop size={14} /> },
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
@@ -288,6 +321,7 @@ export default function App() {
               studyItems={studyItems.length ? studyItems : fallbackStudy}
               confusions={confusions.length ? confusions : fallbackQuestions}
               alerts={alerts.length ? alerts : fallbackAlerts}
+              classSessions={classSessions}
               currentCourse={currentCourse}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
@@ -297,6 +331,11 @@ export default function App() {
               onParseAssignment={parseAssignment}
               onParseSyllabus={parseSyllabus}
               onStartClass={startClass}
+              onCompleteDeadline={completeDeadline}
+              onReviewStudyItem={reviewStudyItem}
+              onResolveConfusion={resolveConfusion}
+              onResolveAlert={resolveAlert}
+              onEndClassSession={endClassSession}
             />
           </main>
 
@@ -323,7 +362,7 @@ export default function App() {
             </Panel>
             <Panel title="Local Alerts" badge={`${Math.max(1, alerts.length)}`}>
               {(alerts.length ? alerts : fallbackAlerts).slice(0, 2).map(alert => (
-                <AlertCard key={alert.id} alert={alert} onDismiss={() => ipc.invoke('attentionAlerts:dismiss', { id: alert.id }).then(refresh)} />
+                <AlertCard key={alert.id} alert={alert} onDismiss={() => ipc.invoke('attentionAlerts:dismiss', { id: alert.id }).then(refresh)} onResolve={() => resolveAlert(alert.id)} />
               ))}
             </Panel>
           </aside>
@@ -343,6 +382,7 @@ function WorkspaceSurface({
   studyItems,
   confusions,
   alerts,
+  classSessions,
   currentCourse,
   onUpdate,
   onDelete,
@@ -352,6 +392,11 @@ function WorkspaceSurface({
   onParseAssignment,
   onParseSyllabus,
   onStartClass,
+  onCompleteDeadline,
+  onReviewStudyItem,
+  onResolveConfusion,
+  onResolveAlert,
+  onEndClassSession,
 }: {
   activeTool: WorkspaceTool
   selected: Note | null
@@ -362,6 +407,7 @@ function WorkspaceSurface({
   studyItems: StudyItem[]
   confusions: ConfusionItem[]
   alerts: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>[]
+  classSessions: ClassSession[]
   currentCourse?: Course
   onUpdate: (id: string, patch: Partial<Note>) => Promise<void>
   onDelete: (id: string) => Promise<void>
@@ -371,20 +417,25 @@ function WorkspaceSurface({
   onParseAssignment: () => Promise<void>
   onParseSyllabus: () => Promise<void>
   onStartClass: () => Promise<void>
+  onCompleteDeadline: (id: string) => Promise<void>
+  onReviewStudyItem: (id: string, difficulty: NonNullable<StudyItem['difficulty']>) => Promise<void>
+  onResolveConfusion: (id: string) => Promise<void>
+  onResolveAlert: (id: string) => Promise<void>
+  onEndClassSession: (id: string) => Promise<void>
 }) {
   switch (activeTool) {
     case 'dashboard':
-      return <DashboardView courses={courses} deadlines={deadlines} studyItems={studyItems} alerts={alerts} />
+      return <DashboardView courses={courses} deadlines={deadlines} studyItems={studyItems} alerts={alerts} onCompleteDeadline={onCompleteDeadline} onResolveAlert={onResolveAlert} />
     case 'quiz':
       return <QuizView selected={selected} selectedText={selectedText} studyItems={studyItems} onCreateQuiz={onCreateQuiz} />
     case 'flashcards':
-      return <FlashcardsView selectedText={selectedText} studyItems={studyItems} onCreateFlashcard={onCreateFlashcard} />
+      return <FlashcardsView selectedText={selectedText} studyItems={studyItems} onCreateFlashcard={onCreateFlashcard} onReviewStudyItem={onReviewStudyItem} />
     case 'assignment':
       return <AssignmentParserView selected={selected} selectedText={selectedText} onParse={onParseAssignment} />
     case 'syllabus':
-      return <SyllabusImportView selected={selected} deadlines={deadlines} onCreate={onCreate} onParseSyllabus={onParseSyllabus} />
+      return <SyllabusImportView selected={selected} deadlines={deadlines} onCreate={onCreate} onParseSyllabus={onParseSyllabus} onCompleteDeadline={onCompleteDeadline} />
     case 'class':
-      return <ClassModeView currentCourse={currentCourse} captures={captures} confusions={confusions} onStartClass={onStartClass} />
+      return <ClassModeView currentCourse={currentCourse} captures={captures} confusions={confusions} classSessions={classSessions} onStartClass={onStartClass} onResolveConfusion={onResolveConfusion} onEndClassSession={onEndClassSession} />
     case 'today':
     default:
       return <DocumentWorkspace selected={selected} captures={captures} currentCourse={currentCourse} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} />
@@ -507,11 +558,15 @@ function DashboardView({
   deadlines,
   studyItems,
   alerts,
+  onCompleteDeadline,
+  onResolveAlert,
 }: {
   courses: Course[]
   deadlines: AcademicDeadline[]
   studyItems: StudyItem[]
   alerts: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>[]
+  onCompleteDeadline: (id: string) => Promise<void>
+  onResolveAlert: (id: string) => Promise<void>
 }) {
   const dueSoon = deadlines.filter(deadline => !deadline.completed).slice(0, 3)
   return (
@@ -540,12 +595,20 @@ function DashboardView({
                 <strong>{deadline.title}</strong>
                 <em>{formatDue(deadline.deadlineAt)}</em>
               </div>
-              <small>{index === 0 ? 'Due soon' : 'Upcoming'}</small>
+              <button className="inline-action" onClick={() => onCompleteDeadline(deadline.id)}>{index === 0 ? 'Complete' : 'Done'}</button>
             </div>
           ))}
         </section>
         <section className="phase3-panel">
-          <h2>Course load</h2>
+          <h2>Attention queue</h2>
+          {alerts.slice(0, 2).map(alert => (
+            <div className="compact-row action-row" key={alert.id}>
+              <Bell size={18} />
+              <div><strong>{alert.title}</strong><em>{alert.priority} priority</em></div>
+              <button onClick={() => onResolveAlert(alert.id)}>Resolve</button>
+            </div>
+          ))}
+          <h2 className="section-spacer">Course load</h2>
           {courses.slice(0, 4).map(course => (
             <div className="compact-row" key={course.id}>
               <span className="section-icon course-token">{course.code?.slice(0, 2) ?? 'CR'}</span>
@@ -587,7 +650,7 @@ function QuizView({ selected, selectedText, studyItems, onCreateQuiz }: { select
   )
 }
 
-function FlashcardsView({ selectedText, studyItems, onCreateFlashcard }: { selectedText: string; studyItems: StudyItem[]; onCreateFlashcard: () => Promise<void> }) {
+function FlashcardsView({ selectedText, studyItems, onCreateFlashcard, onReviewStudyItem }: { selectedText: string; studyItems: StudyItem[]; onCreateFlashcard: () => Promise<void>; onReviewStudyItem: (id: string, difficulty: NonNullable<StudyItem['difficulty']>) => Promise<void> }) {
   const cards = (studyItems.length ? studyItems : fallbackStudy).slice(0, 6)
   return (
     <section className="phase3-card flashcards-view">
@@ -606,6 +669,11 @@ function FlashcardsView({ selectedText, studyItems, onCreateFlashcard }: { selec
             <h2>{item.front}</h2>
             <p>{item.back || 'Answer will be added during review.'}</p>
             <footer><small>{item.type}</small><strong>{item.reviewCount} reviews</strong></footer>
+            <div className="review-actions">
+              {(['again', 'hard', 'good', 'easy'] as const).map(difficulty => (
+                <button key={difficulty} onClick={() => onReviewStudyItem(item.id, difficulty)}>{difficulty}</button>
+              ))}
+            </div>
           </article>
         ))}
       </div>
@@ -618,11 +686,13 @@ function SyllabusImportView({
   deadlines,
   onCreate,
   onParseSyllabus,
+  onCompleteDeadline,
 }: {
   selected: Note | null
   deadlines: AcademicDeadline[]
   onCreate: (type?: Note['documentType']) => Promise<void>
   onParseSyllabus: () => Promise<void>
+  onCompleteDeadline: (id: string) => Promise<void>
 }) {
   return (
     <section className="phase3-card syllabus-view">
@@ -652,7 +722,7 @@ function SyllabusImportView({
             <div className="timeline-row" key={deadline.id}>
               <CalendarDays size={16} />
               <div><strong>{deadline.title}</strong><em>{formatDue(deadline.deadlineAt)}</em></div>
-              <small>{deadline.confirmed ? 'Confirmed' : 'Needs review'}</small>
+              <button className="inline-action" onClick={() => onCompleteDeadline(deadline.id)}>{deadline.confirmed ? 'Complete' : 'Review'}</button>
             </div>
           ))}
         </section>
@@ -665,13 +735,20 @@ function ClassModeView({
   currentCourse,
   captures,
   confusions,
+  classSessions,
   onStartClass,
+  onResolveConfusion,
+  onEndClassSession,
 }: {
   currentCourse?: Course
   captures: Capture[]
   confusions: ConfusionItem[]
+  classSessions: ClassSession[]
   onStartClass: () => Promise<void>
+  onResolveConfusion: (id: string) => Promise<void>
+  onEndClassSession: (id: string) => Promise<void>
 }) {
+  const activeSession = classSessions.find(session => !session.endedAt)
   return (
     <section className="phase3-card class-view">
       <header className="phase3-header">
@@ -680,11 +757,14 @@ function ClassModeView({
           <h1>{currentCourse ? `${currentCourse.code ?? currentCourse.name} session` : 'Live class capture'}</h1>
           <span>Capture notes, questions, and follow-ups while preserving the same StudyDesk shell.</span>
         </div>
-        <button className="review-button" onClick={onStartClass}><GraduationCap size={15} /> Start class</button>
+        {activeSession
+          ? <button className="outline-button phase4-end" onClick={() => onEndClassSession(activeSession.id)}><Clock3 size={15} /> End class</button>
+          : <button className="review-button" onClick={onStartClass}><GraduationCap size={15} /> Start class</button>
+        }
       </header>
       <div className="class-grid">
         <section className="phase3-panel wide">
-          <h2>Live capture stream</h2>
+          <h2>{activeSession ? `Active: ${activeSession.title}` : 'Live capture stream'}</h2>
           {(captures.length ? captures : fallbackCaptures).slice(0, 5).map(capture => (
             <div className="capture-row" key={capture.id}>
               <PenLine size={16} />
@@ -695,9 +775,10 @@ function ClassModeView({
         <section className="phase3-panel">
           <h2>Questions to resolve</h2>
           {(confusions.length ? confusions : fallbackQuestions).slice(0, 4).map(item => (
-            <div className="compact-row" key={item.id}>
+            <div className="compact-row action-row" key={item.id}>
               <HelpCircle size={18} />
               <div><strong>{item.question}</strong><em>{item.status}</em></div>
+              <button onClick={() => onResolveConfusion(item.id)}>Resolve</button>
             </div>
           ))}
         </section>
@@ -760,8 +841,8 @@ function RailText({ title, meta }: { title: string; meta: string }) {
   return <div className="rail-text"><strong>{title}</strong><span>{meta}</span><ChevronRight size={13} /></div>
 }
 
-function AlertCard({ alert, onDismiss }: { alert: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>; onDismiss: () => void }) {
-  return <div className="studydesk-alert"><Target size={19} /><div><strong>{alert.title}</strong><span>{alert.reason}</span></div><button onClick={onDismiss}>Review</button></div>
+function AlertCard({ alert, onDismiss, onResolve }: { alert: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>; onDismiss: () => void; onResolve: () => void }) {
+  return <div className="studydesk-alert"><Target size={19} /><div><strong>{alert.title}</strong><span>{alert.reason}</span></div><button onClick={onResolve}>Resolve</button><button onClick={onDismiss}>Dismiss</button></div>
 }
 
 function DetailBlock({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {

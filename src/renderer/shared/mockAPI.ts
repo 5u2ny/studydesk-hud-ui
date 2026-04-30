@@ -6,6 +6,7 @@ import type {
   Assignment,
   AttentionAlert,
   Capture,
+  ClassSession,
   ConfusionItem,
   Course,
   CriticalEmailAlert,
@@ -123,6 +124,7 @@ export function installMockAPI() {
       updatedAt: now,
     },
   ]
+  const classSessions: ClassSession[] = []
   const confusions: ConfusionItem[] = [
     {
       id: 'preview-confusion-1',
@@ -334,6 +336,8 @@ export function installMockAPI() {
         }
         case 'study:list':
           return Promise.resolve(studyItems)
+        case 'class:list':
+          return Promise.resolve(classSessions)
         case 'confusion:list':
           return Promise.resolve(confusions)
         case 'criticalAlerts:list':
@@ -447,7 +451,8 @@ export function installMockAPI() {
           })))
           return Promise.resolve({ importedDeadlines: req?.deadlines ?? [] })
         case 'class:start':
-          return Promise.resolve({
+          {
+          const session: ClassSession = {
             id: `preview-class-${Date.now()}`,
             courseId: req?.courseId,
             title: req?.title ?? 'Class session',
@@ -461,7 +466,18 @@ export function installMockAPI() {
             actionItems: [],
             createdAt: Date.now(),
             updatedAt: Date.now(),
-          })
+          }
+          classSessions.unshift(session)
+          return Promise.resolve(session)
+          }
+        case 'class:end': {
+          const session = classSessions.find(s => s.id === req?.id)
+          if (session) {
+            session.endedAt = Date.now()
+            session.updatedAt = Date.now()
+          }
+          return Promise.resolve(session)
+        }
         case 'study:create': {
           const item: StudyItem = {
             id: `preview-study-${studyItems.length + 1}`,
@@ -476,6 +492,16 @@ export function installMockAPI() {
           studyItems.unshift(item)
           return Promise.resolve(item)
         }
+        case 'study:review': {
+          const item = studyItems.find(i => i.id === req?.id)
+          if (item) {
+            item.difficulty = req?.difficulty
+            item.reviewCount += 1
+            item.nextReviewAt = Date.now() + 60 * 60_000
+            item.updatedAt = Date.now()
+          }
+          return Promise.resolve(item)
+        }
         case 'confusion:create': {
           const item: ConfusionItem = {
             id: `preview-confusion-${confusions.length + 1}`,
@@ -487,6 +513,14 @@ export function installMockAPI() {
             createdAt: Date.now(),
           }
           confusions.unshift(item)
+          return Promise.resolve(item)
+        }
+        case 'confusion:resolve': {
+          const item = confusions.find(c => c.id === req?.id)
+          if (item) {
+            item.status = 'resolved'
+            item.resolvedAt = Date.now()
+          }
           return Promise.resolve(item)
         }
         case 'capture:update':
