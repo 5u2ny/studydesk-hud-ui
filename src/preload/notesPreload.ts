@@ -7,6 +7,7 @@ const INVOKE_CHANNELS = new Set([
   'notes:update',
   'notes:delete',
   'course:list',
+  'course:create',
   'assignment:list',
   'assignment:create',
   'assignment:parse',

@@ -27,10 +27,19 @@ import {
   Sparkles,
   Target,
   Upload,
+  X,
   Zap,
 } from 'lucide-react'
 
 type WorkspaceTool = 'today' | 'dashboard' | 'quiz' | 'flashcards' | 'assignment' | 'syllabus' | 'class'
+type QuickAddKind = 'course' | 'deadline' | 'note' | 'assignment' | 'syllabus' | 'study' | 'question'
+
+interface QuickAddForm {
+  title: string
+  detail: string
+  code: string
+  due: string
+}
 
 function noteText(content: string): string {
   try {
@@ -52,6 +61,26 @@ function firstUsefulLine(text: string): string {
   return text.split(/[.\n]/).map(s => s.trim()).find(s => s.length > 8)?.slice(0, 140) ?? 'Review this concept'
 }
 
+function tipTapDocument(text: string): string {
+  return JSON.stringify({
+    type: 'doc',
+    content: text.trim()
+      ? [{ type: 'paragraph', content: [{ type: 'text', text: text.trim() }] }]
+      : [],
+  })
+}
+
+function defaultQuickAddForm(kind: QuickAddKind, selectedText = ''): QuickAddForm {
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60_000)
+  tomorrow.setMinutes(0, 0, 0)
+  return {
+    title: kind === 'course' ? '' : kind === 'deadline' ? 'New deadline' : kind === 'study' ? firstUsefulLine(selectedText) : '',
+    detail: kind === 'study' ? 'Add the answer during review.' : '',
+    code: '',
+    due: tomorrow.toISOString().slice(0, 16),
+  }
+}
+
 function initialWorkspaceTool(): WorkspaceTool {
   const tool = new URLSearchParams(window.location.search).get('tool')
   return tool === 'dashboard' || tool === 'quiz' || tool === 'flashcards' || tool === 'assignment' || tool === 'syllabus' || tool === 'class'
@@ -59,7 +88,15 @@ function initialWorkspaceTool(): WorkspaceTool {
     : 'today'
 }
 
+function initialQuickAdd(): QuickAddKind | null {
+  const kind = new URLSearchParams(window.location.search).get('quickAdd')
+  return kind === 'course' || kind === 'deadline' || kind === 'note' || kind === 'assignment' || kind === 'syllabus' || kind === 'study' || kind === 'question'
+    ? kind
+    : null
+}
+
 export default function App() {
+  const initialQuickAddKind = initialQuickAdd()
   const [notes, setNotes] = useState<Note[]>([])
   const [selected, setSelected] = useState<Note | null>(null)
   const [captures, setCaptures] = useState<Capture[]>([])
@@ -71,6 +108,8 @@ export default function App() {
   const [classSessions, setClassSessions] = useState<ClassSession[]>([])
   const [activeTool, setActiveTool] = useState<WorkspaceTool>(initialWorkspaceTool)
   const [status, setStatus] = useState('')
+  const [quickAdd, setQuickAdd] = useState<QuickAddKind | null>(initialQuickAddKind)
+  const [quickAddForm, setQuickAddForm] = useState<QuickAddForm>(initialQuickAddKind ? defaultQuickAddForm(initialQuickAddKind) : { title: '', detail: '', code: '', due: '' })
 
   async function refresh() {
     const [noteData, captureData, courseData, deadlineData, studyData, confusionData, alertData, classData] = await Promise.all([
@@ -118,6 +157,55 @@ export default function App() {
     const updated = await ipc.invoke<Note>('notes:update', { id: note.id, patch: { documentType: type, tags: [] } })
     setNotes(prev => [updated, ...prev])
     setSelected(updated)
+  }
+
+  function openQuickAdd(kind: QuickAddKind) {
+    setQuickAdd(kind)
+    setQuickAddForm(defaultQuickAddForm(kind, selectedText))
+  }
+
+  async function submitQuickAdd(event: React.FormEvent) {
+    event.preventDefault()
+    if (!quickAdd) return
+    const title = quickAddForm.title.trim()
+    const detail = quickAddForm.detail.trim()
+    const fallbackTitle = quickAdd === 'course' ? 'New course' : quickAdd === 'question' ? 'New question' : 'Untitled'
+    switch (quickAdd) {
+      case 'course':
+        await ipc.invoke<Course>('course:create', { name: title || fallbackTitle, code: quickAddForm.code.trim() || undefined })
+        setStatus('Course added.')
+        break
+      case 'deadline':
+        await ipc.invoke<AcademicDeadline>('deadline:create', {
+          title: title || fallbackTitle,
+          deadlineAt: quickAddForm.due ? new Date(quickAddForm.due).getTime() : Date.now() + 24 * 60 * 60_000,
+          courseId: currentCourse?.id,
+          type: 'assignment',
+          sourceType: 'manual',
+        })
+        setStatus('Deadline added.')
+        break
+      case 'study':
+        await ipc.invoke<StudyItem>('study:create', { front: title || firstUsefulLine(selectedText), back: detail || undefined, type: 'flashcard', courseId: currentCourse?.id })
+        setStatus('Flashcard added.')
+        break
+      case 'question':
+        await ipc.invoke<ConfusionItem>('confusion:create', { question: title || fallbackTitle, context: detail || undefined, courseId: currentCourse?.id })
+        setStatus('Question added.')
+        break
+      case 'syllabus':
+      case 'assignment':
+      case 'note': {
+        const documentType: Note['documentType'] = quickAdd === 'syllabus' ? 'syllabus' : quickAdd === 'assignment' ? 'assignment_prompt' : 'note'
+        const note = await ipc.invoke<Note>('notes:create', { title: title || fallbackTitle, content: tipTapDocument(detail) })
+        const updated = await ipc.invoke<Note>('notes:update', { id: note.id, patch: { documentType, courseId: currentCourse?.id, tags: [] } })
+        setSelected(updated)
+        setStatus(`${quickAdd === 'assignment' ? 'Assignment prompt' : quickAdd === 'syllabus' ? 'Syllabus note' : 'Note'} added.`)
+        break
+      }
+    }
+    setQuickAdd(null)
+    await refresh()
   }
 
   async function handleUpdate(id: string, patch: Partial<Note>) {
@@ -268,9 +356,18 @@ export default function App() {
           </div>
         </header>
         {status && <div className="studydesk-status">{status}<button onClick={() => setStatus('')}>Dismiss</button></div>}
+        {quickAdd && (
+          <QuickAddSheet
+            kind={quickAdd}
+            form={quickAddForm}
+            onChange={setQuickAddForm}
+            onClose={() => setQuickAdd(null)}
+            onSubmit={submitQuickAdd}
+          />
+        )}
         <div className="studydesk-workspace">
           <aside className="studydesk-library">
-            <WorkspaceSection title="Courses" onAdd={() => handleCreate('note')}>
+            <WorkspaceSection title="Courses" onAdd={() => openQuickAdd('course')}>
               <div className="studydesk-course-list">
                 {(courses.length ? courses : fallbackCourses).slice(0, 6).map((course, index) => (
                   <button key={course.id} className={index === 0 ? 'active' : ''} onClick={() => setSelected(notes.find(n => n.courseId === course.id) ?? selected)}>
@@ -285,25 +382,25 @@ export default function App() {
               <button className="studydesk-link-row">View all courses <ChevronRight size={14} /></button>
             </WorkspaceSection>
 
-            <WorkspaceSection title="Syllabus Imports" onAdd={() => handleCreate('syllabus')}>
+            <WorkspaceSection title="Syllabus Imports" onAdd={() => openQuickAdd('syllabus')}>
               {(syllabusNotes.length ? syllabusNotes : fallbackSyllabi).slice(0, 3).map(note => (
                 <SidebarItem key={note.id} icon={<FileText size={16} />} title={note.title} meta="Imported Apr 10" tone="teal" onClick={() => 'content' in note && setSelected(note as Note)} />
               ))}
             </WorkspaceSection>
 
-            <WorkspaceSection title="Assignment Prompts" onAdd={() => handleCreate('assignment_prompt')}>
+            <WorkspaceSection title="Assignment Prompts" onAdd={() => openQuickAdd('assignment')}>
               {(assignmentNotes.length ? assignmentNotes : notes).slice(0, 4).map(note => (
                 <SidebarItem key={note.id} active={selected?.id === note.id} icon={<ClipboardList size={16} />} title={note.title || 'Untitled'} meta="Due Apr 27" tone="blue" onClick={() => setSelected(note)} />
               ))}
             </WorkspaceSection>
 
-            <WorkspaceSection title="Notes" onAdd={() => handleCreate('note')}>
+            <WorkspaceSection title="Notes" onAdd={() => openQuickAdd('note')}>
               {classNotes.slice(0, 3).map(note => (
                 <SidebarItem key={note.id} icon={<FileText size={16} />} title={note.title || 'Untitled'} meta={new Date(note.updatedAt).toLocaleDateString()} tone="orange" onClick={() => setSelected(note)} />
               ))}
             </WorkspaceSection>
 
-            <WorkspaceSection title="Captures" onAdd={() => handleCreate('note')}>
+            <WorkspaceSection title="Captures" onAdd={() => openQuickAdd('question')}>
               {(captures.length ? captures : fallbackCaptures).slice(0, 3).map(capture => (
                 <SidebarItem key={capture.id} icon={<Image size={16} />} title={capture.text.slice(0, 34)} meta="Apr 21" tone="purple" />
               ))}
@@ -807,6 +904,75 @@ function WorkspaceSection({ title, children, onAdd }: { title: string; children:
       {children}
     </section>
   )
+}
+
+function QuickAddSheet({
+  kind,
+  form,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  kind: QuickAddKind
+  form: QuickAddForm
+  onChange: (form: QuickAddForm) => void
+  onClose: () => void
+  onSubmit: (event: React.FormEvent) => void
+}) {
+  const titleLabel = kind === 'course' ? 'Course name' : kind === 'question' ? 'Question' : kind === 'study' ? 'Front' : 'Title'
+  const detailLabel = kind === 'study' ? 'Back' : kind === 'question' ? 'Context' : 'Details'
+  return (
+    <div className="quick-add-backdrop">
+      <form className="quick-add-sheet" onSubmit={onSubmit}>
+        <header>
+          <div>
+            <p className="phase3-eyebrow">Quick add</p>
+            <h2>{quickAddTitle(kind)}</h2>
+          </div>
+          <button type="button" className="icon-pill compact" onClick={onClose}><X size={16} /></button>
+        </header>
+        <label>
+          <span>{titleLabel}</span>
+          <input value={form.title} onChange={event => onChange({ ...form, title: event.target.value })} autoFocus />
+        </label>
+        {kind === 'course' && (
+          <label>
+            <span>Course code</span>
+            <input value={form.code} onChange={event => onChange({ ...form, code: event.target.value })} placeholder="PSYC 101" />
+          </label>
+        )}
+        {kind === 'deadline' && (
+          <label>
+            <span>Due date</span>
+            <input type="datetime-local" value={form.due} onChange={event => onChange({ ...form, due: event.target.value })} />
+          </label>
+        )}
+        {kind !== 'course' && kind !== 'deadline' && (
+          <label>
+            <span>{detailLabel}</span>
+            <textarea value={form.detail} onChange={event => onChange({ ...form, detail: event.target.value })} rows={4} />
+          </label>
+        )}
+        <footer>
+          <button type="button" className="outline-button" onClick={onClose}>Cancel</button>
+          <button type="submit" className="review-button">Add</button>
+        </footer>
+      </form>
+    </div>
+  )
+}
+
+function quickAddTitle(kind: QuickAddKind) {
+  switch (kind) {
+    case 'course': return 'Course'
+    case 'deadline': return 'Deadline'
+    case 'assignment': return 'Assignment prompt'
+    case 'syllabus': return 'Syllabus note'
+    case 'study': return 'Flashcard'
+    case 'question': return 'Question'
+    case 'note':
+    default: return 'Note'
+  }
 }
 
 function SidebarItem({ title, meta, icon, tone, active, onClick }: { title: string; meta: string; icon: React.ReactNode; tone: string; active?: boolean; onClick?: () => void }) {

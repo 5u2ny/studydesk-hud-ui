@@ -776,6 +776,92 @@ body {
   box-shadow: 0 14px 36px rgba(18, 64, 141, 0.18);
 }
 
+.quick-add-backdrop {
+  position: absolute;
+  inset: 64px 0 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  background: rgba(210, 233, 255, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.quick-add-sheet {
+  width: min(430px, calc(100% - 44px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 18px;
+  background: rgba(248, 252, 255, 0.82);
+  box-shadow: 0 28px 70px rgba(18, 64, 141, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  color: #151b2b;
+}
+
+.quick-add-sheet header,
+.quick-add-sheet footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quick-add-sheet h2 {
+  margin: 3px 0 0;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.quick-add-sheet label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.quick-add-sheet label span {
+  color: #687387;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.quick-add-sheet input,
+.quick-add-sheet textarea {
+  width: 100%;
+  border: 1px solid rgba(92, 111, 142, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #151b2b;
+  font: inherit;
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.quick-add-sheet input {
+  height: 38px;
+  padding: 0 12px;
+}
+
+.quick-add-sheet textarea {
+  resize: vertical;
+  min-height: 96px;
+  padding: 10px 12px;
+}
+
+.quick-add-sheet footer {
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.quick-add-sheet footer .outline-button {
+  width: auto;
+  height: 32px;
+  padding: 0 14px;
+}
+
 .studydesk-workspace {
   min-height: 0;
   display: grid;

@@ -12,6 +12,7 @@ This contract locks the product architecture for future phases. Any new feature 
 - The right rail owns deadlines, checklist progress, study queue, unresolved questions, and local alerts.
 - Phase 3 central surfaces are first-class architecture: Dashboard, Quiz, Flashcards, Syllabus Import, and Class Mode must render inside the same central work surface rather than replacing the shell.
 - Phase 4 workflow controls must call existing IPC services from inside the shell. Do not create parallel client-only workflow state when a persisted service already exists.
+- Phase 5 creation workflows must use an in-shell quick-add sheet. Left-rail plus buttons should create real persisted entities through existing IPC services, not placeholder notes.
 
 ## Visual Rules
 
@@ -29,4 +30,5 @@ Before ending any future UI phase:
 - The full workspace preview must render at desktop size without overlapping text or clipped controls.
 - Every top navigation tab must route to a visible in-shell workspace surface; tab clicks must not create or mutate data unless the user presses an explicit action button inside the surface.
 - Workflow buttons for review, resolve, complete, start, and end must refresh shared workspace data after completion so the side rail and central surface stay in sync.
+- Quick-add creation must close only after the backing service succeeds, refresh workspace data, and preserve the top HUD, left rail, central surface, and right rail behind the sheet.
 - `npm run typecheck`, `npm run build:renderer`, and `npm test` must pass or the failure must be documented with the exact blocker.
