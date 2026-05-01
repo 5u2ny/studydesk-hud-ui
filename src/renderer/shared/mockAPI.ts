@@ -264,6 +264,7 @@ export function installMockAPI() {
     saveSettings: (s: AppSettings) => { state.settings = { ...s }; phaseDuration = getDuration(state.phase); broadcast(); return Promise.resolve() },
     getState: () => Promise.resolve({ ...state }),
     resizeWindow: (_height: number, _width?: number, _isIsland?: boolean) => Promise.resolve(),
+    getNotchHeight: () => Promise.resolve(30),
     onTimerTick:    (cb) => { (listeners['timer:tick'] ??= []).push(cb as (...a: unknown[]) => void) },
     onPhaseChanged: (cb) => { (listeners['timer:phaseChanged'] ??= []).push(cb as (...a: unknown[]) => void) },
     onFreezeEnter:  (cb) => { (listeners['freeze:enter'] ??= []).push(cb as (...a: unknown[]) => void) },

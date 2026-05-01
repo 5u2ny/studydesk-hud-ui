@@ -59,6 +59,7 @@ export interface FocusAPI {
   saveSettings: (s: AppSettings) => Promise<void>;
   getState:     () => Promise<AppState>;
   resizeWindow: (h: number, w?: number, isIsland?: boolean) => Promise<void>;
+  getNotchHeight: () => Promise<number>;
 
   onTimerTick:        (cb: (d: any) => void) => void;
   onPhaseChanged:     (cb: (d: any) => void) => void;

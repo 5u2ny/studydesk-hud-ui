@@ -1,14 +1,12 @@
 import React from 'react'
 import { cn } from '@shared/lib/utils'
 import type { NotchFeatureId, NotchIdleChip } from './notchModel'
-import { NotchDock } from './NotchDock'
 import { NotchIdle } from './NotchIdle'
 import { NotchPopover } from './NotchPopover'
 import type { NotchDockItem } from './NotchFeatureButton'
 
 export function NotchShell({
   activeFeature,
-  hoverDock,
   captureFlash,
   isRunning,
   dockItems,
@@ -19,19 +17,14 @@ export function NotchShell({
   phaseLabel,
   children,
   onRootMouseDown,
-  onMouseEnter,
-  onMouseLeave,
-  onFocusCapture,
-  onBlurCapture,
+  onCapClick,
   onTimerClick,
   onFeatureClick,
-  onDockKeyDown,
   setTriggerRef,
   onClosePopover,
   onOpenWorkspace,
 }: {
   activeFeature: NotchFeatureId | null
-  hoverDock: boolean
   captureFlash: boolean
   isRunning: boolean
   dockItems: NotchDockItem[]
@@ -42,13 +35,9 @@ export function NotchShell({
   phaseLabel: string
   children: React.ReactNode
   onRootMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void
-  onMouseEnter: () => void
-  onMouseLeave: () => void
-  onFocusCapture: () => void
-  onBlurCapture: (event: React.FocusEvent<HTMLDivElement>) => void
+  onCapClick: () => void
   onTimerClick: () => void
   onFeatureClick: (id: NotchFeatureId) => void
-  onDockKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void
   setTriggerRef: (id: NotchFeatureId, node: HTMLButtonElement | null) => void
   onClosePopover: () => void
   onOpenWorkspace: () => void
@@ -60,22 +49,22 @@ export function NotchShell({
       className={cn('studydesk-notch-root', activeItem && 'has-popover')}
       onMouseDown={onRootMouseDown}
     >
+      {/* Fixed-width cap -- never changes shape. Click opens popover. */}
       <div
         className={cn(
           'studydesk-notch-shell',
           isRunning && 'is-running',
           captureFlash && 'capture-flash',
-          hoverDock && !activeFeature && 'is-hover-dock',
           activeFeature && 'is-expanded',
         )}
         data-active-feature={activeFeature ?? undefined}
-        data-state={activeFeature ? 'activePopover' : hoverDock ? 'hoverDock' : 'idle'}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-        onFocusCapture={onFocusCapture}
-        onBlurCapture={onBlurCapture}
+        data-state={activeFeature ? 'activePopover' : 'idle'}
+        onClick={onCapClick}
+        role="button"
+        tabIndex={0}
+        aria-label="Open StudyDesk"
       >
-        <div className="studydesk-notch-bar drag-region" role="group" aria-label="StudyDesk Notch">
+        <div className="studydesk-notch-bar" role="group" aria-label="StudyDesk Notch">
           <NotchIdle
             chips={idleChips}
             liveStatus={liveStatus}
@@ -85,22 +74,22 @@ export function NotchShell({
             phaseLabel={phaseLabel}
             isRunning={isRunning}
           />
-          <NotchDock
-            items={dockItems}
-            activeFeature={activeFeature}
-            setTriggerRef={setTriggerRef}
-            onFeatureClick={onFeatureClick}
-            onKeyDown={onDockKeyDown}
-          />
-          <div className="studydesk-notch-status" title={liveStatus}>{liveStatus}</div>
         </div>
       </div>
 
-      {/* Popover lives OUTSIDE the shell — appears as a floating Liquid
+      {/* Popover lives OUTSIDE the shell -- appears as a floating Liquid
           Glass panel below the notch, with a transparent gap, like a
-          macOS widget. */}
+          macOS widget. Dock icons are inside the popover header. */}
       {activeItem && (
-        <NotchPopover item={activeItem} onClose={onClosePopover} onOpenWorkspace={onOpenWorkspace}>
+        <NotchPopover
+          item={activeItem}
+          dockItems={dockItems}
+          activeFeature={activeFeature}
+          setTriggerRef={setTriggerRef}
+          onFeatureClick={onFeatureClick}
+          onClose={onClosePopover}
+          onOpenWorkspace={onOpenWorkspace}
+        >
           {children}
         </NotchPopover>
       )}

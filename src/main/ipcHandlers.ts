@@ -99,13 +99,11 @@ export function setupIPC() {
     windowManager.resizeFloating(Math.round(h), w ? Math.round(w) : undefined, isIsland);
   });
 
-  // Returns the EXACT hardware notch / menu-bar height for the primary
-  // display (e.g. 38 on M-series MacBook Pro, 32 on Air, 25 on older non-
-  // notched Macs). Renderer applies this so the shell matches pixel-for-
-  // pixel — no manual fudging.
+  // Returns the menu-bar / hardware-notch inset for the primary display,
+  // using the same floor (24) as windowManager so every layer agrees.
   ipcMain.handle('window:getNotchHeight', () => {
     const display = screen.getPrimaryDisplay();
-    return Math.max(display.workArea.y - display.bounds.y, 0);
+    return Math.max(display.workArea.y - display.bounds.y, 24);
   });
 
   // Timer toggle push event from renderer shortcut

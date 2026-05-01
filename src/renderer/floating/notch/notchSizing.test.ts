@@ -2,13 +2,16 @@ import { describe, expect, test } from 'vitest'
 import { getNotchGeometry, getNotchSize, NOTCH_SIZES, type NotchState } from './notchSizing'
 
 describe('notch sizing', () => {
-  test('uses notch-native state sizes that grow downward from the anchor', () => {
-    expect(getNotchSize('idle')).toEqual({ w: 260, h: 42 })
-    expect(getNotchSize('hoverDock')).toEqual({ w: 560, h: 96 })
-    expect(getNotchSize('activePopover')).toEqual({ w: 740, h: 390 })
-    expect(getNotchSize('workspaceOpening')).toEqual({ w: 560, h: 96 })
-    expect(getNotchSize('hoverDock').h).toBeGreaterThan(getNotchSize('idle').h)
-    expect(getNotchSize('activePopover').h).toBeGreaterThan(getNotchSize('hoverDock').h)
+  test('fixed cap: idle and hoverDock use the same small size', () => {
+    expect(getNotchSize('idle')).toEqual({ w: 220, h: 38 })
+    expect(getNotchSize('hoverDock')).toEqual({ w: 220, h: 38 })
+    expect(getNotchSize('workspaceOpening')).toEqual({ w: 220, h: 38 })
+  })
+
+  test('activePopover uses a wider window for the widget below', () => {
+    expect(getNotchSize('activePopover')).toEqual({ w: 540, h: 430 })
+    expect(getNotchSize('activePopover').w).toBeGreaterThan(getNotchSize('idle').w)
+    expect(getNotchSize('activePopover').h).toBeGreaterThan(getNotchSize('idle').h)
   })
 
   test('does not use preview-scale 1504px widths', () => {
@@ -22,23 +25,12 @@ describe('notch sizing', () => {
     expect(Object.keys(NOTCH_SIZES).sort()).toEqual([...states].sort())
   })
 
-  test('defines a top-center physical notch geometry', () => {
-    expect(getNotchGeometry()).toEqual({
-      anchor: 'top-center',
-      safeTopAttachment: true,
-      topInset: 0,
-      collapsedNotchWidth: 210,
-      collapsedNotchHeight: 34,
-      expandedNotchWidth: 560,
-      expandedNotchHeight: 96,
-      popoverOffset: 0,
-    })
-  })
-
-  test('keeps the collapsed cap smaller than the expanded notch body', () => {
-    const geometry = getNotchGeometry()
-    expect(geometry.collapsedNotchWidth).toBeLessThan(geometry.expandedNotchWidth)
-    expect(geometry.collapsedNotchHeight).toBeLessThan(geometry.expandedNotchHeight)
-    expect(geometry.popoverOffset).toBe(0)
+  test('defines a top-center physical notch geometry with fixed cap', () => {
+    const g = getNotchGeometry()
+    expect(g.anchor).toBe('top-center')
+    expect(g.safeTopAttachment).toBe(true)
+    expect(g.collapsedNotchWidth).toBe(220)
+    expect(g.expandedNotchWidth).toBe(220)
+    expect(g.collapsedNotchWidth).toBe(g.expandedNotchWidth)
   })
 })

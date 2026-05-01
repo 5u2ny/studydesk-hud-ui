@@ -1,28 +1,34 @@
 import React from 'react'
-import type { NotchDockItem } from './NotchFeatureButton'
+import type { NotchFeatureId } from './notchModel'
+import { NotchFeatureButton, type NotchDockItem } from './NotchFeatureButton'
 
 /*
- * Floating Liquid-Glass widget that appears below the notch when an
- * icon is clicked. Designed to match macOS 26 (Tahoe) widget visuals:
+ * Floating Liquid-Glass widget that appears below the notch when the
+ * cap is clicked. Dock icons live in the header row for feature
+ * switching -- they no longer appear in the cap itself.
  *
- *   ┌────────────────────────────┐
- *   │ ◔  Today           ⤢   ✕   │   header — icon, title, actions
- *   │ ─────────────────────────  │
- *   │  [content]                 │   children flow flush
- *   │                            │
- *   └────────────────────────────┘
- *
- * No nested header / footer — the widget owns its own chrome and
- * children render flush so the inside doesn't feel like a panel-in-a-
- * panel.
+ *   +----------------------------------------------+
+ *   | @  Today   [deadlines] [settings]   =>   X   |   header + dock
+ *   | -------------------------------------------  |
+ *   |  [content]                                   |   children flow flush
+ *   |                                              |
+ *   +----------------------------------------------+
  */
 export function NotchPopover({
   item,
+  dockItems,
+  activeFeature,
+  setTriggerRef,
+  onFeatureClick,
   children,
   onClose,
   onOpenWorkspace,
 }: {
   item: NotchDockItem
+  dockItems: NotchDockItem[]
+  activeFeature: NotchFeatureId | null
+  setTriggerRef: (id: NotchFeatureId, node: HTMLButtonElement | null) => void
+  onFeatureClick: (id: NotchFeatureId) => void
   children: React.ReactNode
   onClose: () => void
   onOpenWorkspace: () => void
@@ -37,6 +43,20 @@ export function NotchPopover({
       <header className="widget-header">
         <span className="widget-icon" aria-hidden="true">{item.icon}</span>
         <h2 className="widget-title">{item.label}</h2>
+
+        {/* Dock nav row -- feature switching icons */}
+        <nav className="studydesk-popover-dock-row" aria-label="Features">
+          {dockItems.map(d => (
+            <NotchFeatureButton
+              key={d.id}
+              item={d}
+              active={activeFeature === d.id}
+              setRef={node => setTriggerRef(d.id, node)}
+              onClick={() => onFeatureClick(d.id)}
+            />
+          ))}
+        </nav>
+
         <div className="widget-actions">
           <button
             type="button"

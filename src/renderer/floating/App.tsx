@@ -328,35 +328,16 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [activePopover, showSettings, closeSettings, closePopover, togglePopover, handleStartPause])
 
-  // Tiny grace window so quick mouse-outs (crossing button gaps,
-  // overshooting the wing edge by a few pixels) don't collapse the dock
-  // and re-trigger the resize animation.
-  const closeTimer = useRef<number | null>(null)
-
-  const openHoverDock = useCallback(() => {
-    if (activePopover || showSettings) return
-    if (closeTimer.current !== null) {
-      window.clearTimeout(closeTimer.current)
-      closeTimer.current = null
+  // Cap click: if no popover open, open "today" as default feature.
+  // If a popover is already open, close it.
+  const handleCapClick = useCallback(() => {
+    if (showSettings) return
+    if (activePopover) {
+      closePopover()
+    } else {
+      togglePopover('today')
     }
-    setHoverDock(true)
-    resizeNotch('hoverDock')
-  }, [activePopover, showSettings, resizeNotch])
-
-  const closeHoverDock = useCallback(() => {
-    if (activePopover || showSettings) return
-    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
-    closeTimer.current = window.setTimeout(() => {
-      closeTimer.current = null
-      setHoverDock(false)
-      resizeNotch('idle')
-    }, 150)
-  }, [activePopover, showSettings, resizeNotch])
-
-  const handleShellBlur = useCallback((event: React.FocusEvent<HTMLDivElement>) => {
-    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-    closeHoverDock()
-  }, [closeHoverDock])
+  }, [activePopover, showSettings, closePopover, togglePopover])
 
   const setTriggerRef = useCallback((id: FeatureId, node: HTMLButtonElement | null) => {
     triggerRefs.current[id] = node
@@ -588,26 +569,11 @@ export default function App() {
     closePopover(false)
   }
 
-  const handleDockKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
-    if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return
-    const active = document.activeElement as HTMLElement | null
-    const current = active?.dataset.feature as FeatureId | undefined
-    const currentIndex = current ? NOTCH_FEATURE_ORDER.indexOf(current) : -1
-    let nextIndex = currentIndex
-    if (event.key === 'Home') nextIndex = 0
-    else if (event.key === 'End') nextIndex = NOTCH_FEATURE_ORDER.length - 1
-    else if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % NOTCH_FEATURE_ORDER.length
-    else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + NOTCH_FEATURE_ORDER.length) % NOTCH_FEATURE_ORDER.length
-    event.preventDefault()
-    triggerRefs.current[NOTCH_FEATURE_ORDER[nextIndex]]?.focus()
-  }
-
   const renderedPopover = <PopoverContent />
 
   return (
     <NotchShell
       activeFeature={activePopover}
-      hoverDock={hoverDock}
       captureFlash={captureFlash}
       isRunning={state.isRunning}
       dockItems={dockItems}
@@ -617,13 +583,9 @@ export default function App() {
       totalSeconds={state.totalSeconds}
       phaseLabel={phaseLabel}
       onRootMouseDown={handleRootMouseDown}
-      onMouseEnter={openHoverDock}
-      onMouseLeave={closeHoverDock}
-      onFocusCapture={openHoverDock}
-      onBlurCapture={handleShellBlur}
+      onCapClick={handleCapClick}
       onTimerClick={handleStartPause}
       onFeatureClick={handleFeatureClick}
-      onDockKeyDown={handleDockKeyDown}
       setTriggerRef={setTriggerRef}
       onClosePopover={() => closePopover()}
       onOpenWorkspace={openWorkspace}
