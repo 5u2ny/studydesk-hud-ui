@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppState } from '@shared/hooks/useAppState'
-import { PHASE_COLORS, PHASE_LABELS } from '@shared/constants'
+import { PHASE_LABELS } from '@shared/constants'
 import type { TimerPhase } from '@shared/types'
 import { ipc } from '@shared/ipc-client'
 import type {
@@ -21,11 +21,15 @@ import { Button } from '@shared/ui/button'
 import { Input } from '@shared/ui/input'
 import { cn } from '@shared/lib/utils'
 import {
-  getIslandBadges,
-  getIslandLiveStatus,
-  ISLAND_FEATURE_ORDER,
-  type IslandFeatureId,
-} from './islandModel'
+  getNotchBadges,
+  getNotchIdleChips,
+  getNotchLiveStatus,
+  NOTCH_FEATURE_ORDER,
+  type NotchFeatureId,
+} from './notch/notchModel'
+import { getNotchSize, type NotchState } from './notch/notchSizing'
+import { NotchShell } from './notch/NotchShell'
+import type { NotchDockItem } from './notch/NotchFeatureButton'
 import {
   ArrowRight,
   Bell,
@@ -37,8 +41,6 @@ import {
   Clock3,
   FileText,
   GraduationCap,
-  Pause,
-  Play,
   Plus,
   Settings as SettingsIcon,
   Target,
@@ -51,12 +53,10 @@ const PHASE_RGB: Record<TimerPhase, [number, number, number]> = {
   rest: [148, 163, 184],
 }
 
-const COLLAPSED = { w: 1504, h: 96 }
-const POPOVER = { w: 1504, h: 884 }
 const ONBOARD = { w: 480, h: 520 }
 const SETTINGS = { w: 560, h: 640 }
 
-type FeatureId = IslandFeatureId
+type FeatureId = NotchFeatureId
 
 interface TodaySummary {
   currentFocusTask?: Todo
@@ -85,6 +85,7 @@ function dueLabel(ts?: number) {
 export default function App() {
   const state = useAppState()
   const [activePopover, setActivePopover] = useState<FeatureId | null>(() => (window as any).__FOCUS_OS_WEB_PREVIEW__ ? 'today' : null)
+  const [hoverDock, setHoverDock] = useState(false)
   const [workspaceOpening, setWorkspaceOpening] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [focusSettings, setFocusSettings] = useState<Settings | null>(null)
@@ -105,6 +106,11 @@ export default function App() {
   const [captureFlash, setCaptureFlash] = useState(false)
   const activeTrigger = useRef<FeatureId | null>(null)
   const triggerRefs = useRef<Partial<Record<FeatureId, HTMLButtonElement | null>>>({})
+
+  const resizeNotch = useCallback((notchState: NotchState) => {
+    const size = getNotchSize(notchState)
+    window.focusAPI.resizeWindow(size.h, size.w, true)
+  }, [])
 
   const refreshAcademic = useCallback(async () => {
     const [todayData, courseData, deadlineData, captureData, studyData, confusionData, alertData, noteData] = await Promise.all([
@@ -131,9 +137,10 @@ export default function App() {
     ipc.invoke<Settings>('focus:settings:get').then(s => {
       setFocusSettings(s)
       if (s && !s.hasCompletedOnboarding) window.focusAPI.resizeWindow(ONBOARD.h, ONBOARD.w)
+      else resizeNotch('idle')
     }).catch(() => {})
     refreshAcademic().catch(() => {})
-  }, [refreshAcademic])
+  }, [refreshAcademic, resizeNotch])
 
   useEffect(() => {
     if (state?.currentTask && state.currentTask !== taskInput) setTaskInput(state.currentTask)
@@ -144,8 +151,9 @@ export default function App() {
       setCaptures(prev => prev.find(c => c.id === capture.id) ? prev : [capture, ...prev])
       setCaptureFlash(true)
       setTimeout(() => setCaptureFlash(false), 1400)
+      activeTrigger.current = 'capture'
       setActivePopover('capture')
-      window.focusAPI.resizeWindow(POPOVER.h, POPOVER.w, false)
+      resizeNotch('activePopover')
     })
     ipc.on('gmail:newEmails', () => refreshAcademic().catch(() => {}))
     ipc.on('ui:openSettings', () => {
@@ -158,7 +166,7 @@ export default function App() {
       ipc.off('gmail:newEmails')
       ipc.off('ui:openSettings')
     }
-  }, [refreshAcademic])
+  }, [refreshAcademic, resizeNotch])
 
   useEffect(() => {
     if (!state) return
@@ -180,19 +188,21 @@ export default function App() {
     activeTrigger.current = next
     setActivePopover(current => {
       const value = current === next ? null : next
-      window.focusAPI.resizeWindow(value ? POPOVER.h : COLLAPSED.h, POPOVER.w, false)
+      resizeNotch(value ? 'activePopover' : 'idle')
+      if (value) setHoverDock(false)
       return value
     })
-  }, [])
+  }, [resizeNotch])
 
   const closePopover = useCallback((returnFocus = true) => {
     const lastTrigger = activeTrigger.current
     setActivePopover(null)
-    window.focusAPI.resizeWindow(COLLAPSED.h, COLLAPSED.w, false)
+    setHoverDock(false)
+    resizeNotch('idle')
     if (returnFocus && lastTrigger) {
       requestAnimationFrame(() => triggerRefs.current[lastTrigger]?.focus())
     }
-  }, [])
+  }, [resizeNotch])
 
   const openSettingsPanel = useCallback(() => {
     setActivePopover(null)
@@ -267,9 +277,9 @@ export default function App() {
 
   const closeSettings = useCallback(() => {
     setShowSettings(false)
-    window.focusAPI.resizeWindow(activePopover ? POPOVER.h : COLLAPSED.h, activePopover ? POPOVER.w : COLLAPSED.w)
+    resizeNotch(activePopover ? 'activePopover' : 'idle')
     ipc.invoke<Settings>('focus:settings:get').then(setFocusSettings).catch(() => {})
-  }, [activePopover])
+  }, [activePopover, resizeNotch])
 
   useEffect(() => {
     const tabByDigit: Record<string, FeatureId> = {
@@ -304,6 +314,31 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [activePopover, showSettings, closeSettings, closePopover, togglePopover, handleStartPause])
 
+  const openHoverDock = useCallback(() => {
+    if (activePopover || showSettings) return
+    setHoverDock(true)
+    resizeNotch('hoverDock')
+  }, [activePopover, showSettings, resizeNotch])
+
+  const closeHoverDock = useCallback(() => {
+    if (activePopover || showSettings) return
+    setHoverDock(false)
+    resizeNotch('idle')
+  }, [activePopover, showSettings, resizeNotch])
+
+  const handleShellBlur = useCallback((event: React.FocusEvent<HTMLDivElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    closeHoverDock()
+  }, [closeHoverDock])
+
+  const setTriggerRef = useCallback((id: FeatureId, node: HTMLButtonElement | null) => {
+    triggerRefs.current[id] = node
+  }, [])
+
+  const handleFeatureClick = useCallback((id: FeatureId) => {
+    togglePopover(id)
+  }, [togglePopover])
+
   if (focusSettings && !focusSettings.hasCompletedOnboarding) {
     return (
       <div className="h-full w-full p-3">
@@ -312,7 +347,7 @@ export default function App() {
             onComplete={() => {
               ipc.invoke('focus:settings:update', { hasCompletedOnboarding: true })
               setFocusSettings(s => s ? { ...s, hasCompletedOnboarding: true } : s)
-              window.focusAPI.resizeWindow(COLLAPSED.h, COLLAPSED.w)
+              resizeNotch('idle')
             }}
           />
         </div>
@@ -345,13 +380,11 @@ export default function App() {
     )
   }
 
-  const phaseColor = PHASE_COLORS[state.phase] ?? '#ff4d4d'
   const phaseLabel = PHASE_LABELS[state.phase]
-  const total = state.totalSeconds ?? state.settings.focusDuration
-  const progress = total > 0 ? state.remainingSeconds / total : 1
   const nextDeadline = today?.nextDeadline
   const dueTodayCount = (today?.dueToday ?? []).length
-  const liveStatus = getIslandLiveStatus({
+  const timerLabel = `${fmt(state.remainingSeconds)} ${phaseLabel}`
+  const liveStatus = getNotchLiveStatus({
     alerts: attentionAlerts,
     isRunning: state.isRunning,
     timerLabel: `${fmt(state.remainingSeconds)} ${phaseLabel.toLowerCase()}`,
@@ -359,35 +392,24 @@ export default function App() {
     nextDeadline,
     studyItems,
   })
-  const badges = getIslandBadges({ dueTodayCount, captures, studyItems, alerts: attentionAlerts })
+  const badges = getNotchBadges({ dueTodayCount, captures, studyItems, alerts: attentionAlerts })
+  const idleChips = getNotchIdleChips({
+    timerLabel,
+    nextDeadline,
+    studyItems,
+    formatDeadline: deadline => `${deadline.title} · ${dueLabel(deadline.deadlineAt)}`,
+  })
 
-  const dockItems: { id: FeatureId; label: string; icon: React.ReactNode; badge?: number }[] = [
-    { id: 'today', label: 'Today', icon: <Target size={17} /> },
-    { id: 'courses', label: 'Courses', icon: <GraduationCap size={17} /> },
-    { id: 'deadlines', label: 'Deadlines', icon: <CalendarDays size={17} />, badge: badges.deadlines },
-    { id: 'capture', label: 'Capture', icon: <Bookmark size={17} />, badge: badges.capture },
-    { id: 'study', label: 'Study', icon: <Brain size={17} />, badge: badges.study },
-    { id: 'alerts', label: 'Alerts', icon: <Bell size={17} />, badge: badges.alerts },
-    { id: 'workspace', label: 'Workspace', icon: <FileText size={17} /> },
-    { id: 'settings', label: 'Settings', icon: <SettingsIcon size={17} /> },
+  const dockItems: NotchDockItem[] = [
+    { id: 'today', label: 'Today', title: 'What needs attention now', icon: <Target size={17} /> },
+    { id: 'courses', label: 'Courses', title: 'Organize work by class', icon: <GraduationCap size={17} /> },
+    { id: 'deadlines', label: 'Deadlines', title: 'Due work, not calendar clutter', icon: <CalendarDays size={17} />, badge: badges.deadlines },
+    { id: 'capture', label: 'Capture', title: 'Turn highlights into study material', icon: <Bookmark size={17} />, badge: badges.capture },
+    { id: 'study', label: 'Study', title: 'Review queue and parked questions', icon: <Brain size={17} />, badge: badges.study },
+    { id: 'alerts', label: 'Alerts', title: 'Academic items that need attention', icon: <Bell size={17} />, badge: badges.alerts },
+    { id: 'workspace', label: 'Workspace', title: 'Open the full native academic workspace', icon: <FileText size={17} /> },
+    { id: 'settings', label: 'Settings', title: 'HUD controls and preferences', icon: <SettingsIcon size={17} /> },
   ]
-
-  const timerPercent = Math.round((1 - progress) * 100)
-
-  const PillTimer = (
-    <div className="island-live-timer compact-leading">
-      <button className="island-play" onClick={handleStartPause} aria-label={state.isRunning ? 'Pause timer' : 'Start timer'}>
-        {state.isRunning ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
-      </button>
-      <div className="min-w-0 flex-1">
-        <div className="island-timer-line">
-          <span className="island-time">{fmt(state.remainingSeconds)}</span>
-          <span className="island-phase">{phaseLabel}</span>
-        </div>
-        <div className="island-progress"><div style={{ width: `${timerPercent}%`, background: phaseColor }} /></div>
-      </div>
-    </div>
-  )
 
   const PopoverContent = () => {
     switch (activePopover) {
@@ -538,7 +560,7 @@ export default function App() {
   const handleRootMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!activePopover) return
     const target = event.target as HTMLElement
-    if (target.closest('.dynamic-island-hud') || target.closest('.island-expanded-region')) return
+    if (target.closest('.studydesk-notch-shell') || target.closest('.studydesk-notch-popover')) return
     closePopover(false)
   }
 
@@ -546,100 +568,44 @@ export default function App() {
     if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return
     const active = document.activeElement as HTMLElement | null
     const current = active?.dataset.feature as FeatureId | undefined
-    const currentIndex = current ? ISLAND_FEATURE_ORDER.indexOf(current) : -1
+    const currentIndex = current ? NOTCH_FEATURE_ORDER.indexOf(current) : -1
     let nextIndex = currentIndex
     if (event.key === 'Home') nextIndex = 0
-    else if (event.key === 'End') nextIndex = ISLAND_FEATURE_ORDER.length - 1
-    else if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % ISLAND_FEATURE_ORDER.length
-    else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + ISLAND_FEATURE_ORDER.length) % ISLAND_FEATURE_ORDER.length
+    else if (event.key === 'End') nextIndex = NOTCH_FEATURE_ORDER.length - 1
+    else if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % NOTCH_FEATURE_ORDER.length
+    else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + NOTCH_FEATURE_ORDER.length) % NOTCH_FEATURE_ORDER.length
     event.preventDefault()
-    triggerRefs.current[ISLAND_FEATURE_ORDER[nextIndex]]?.focus()
+    triggerRefs.current[NOTCH_FEATURE_ORDER[nextIndex]]?.focus()
   }
 
+  const renderedPopover = <PopoverContent />
+
   return (
-    <div className="student-root" onMouseDown={handleRootMouseDown}>
-      <div
-        className={cn('hud dynamic-island-hud', state.isRunning && 'is-running', captureFlash && 'capture-flash', activePopover && 'is-expanded')}
-        data-active-feature={activePopover ?? undefined}
-      >
-        <div className="dynamic-island-content drag-region" role="group" aria-label="StudyDesk live activity">
-          <div className="mac-window-controls" aria-hidden="true">
-            <span className="traffic-light close" />
-            <span className="traffic-light minimize" />
-            <span className="traffic-light maximize" />
-          </div>
-          {PillTimer}
-          <button
-            className="island-compact-trailing no-drag"
-            onClick={() => togglePopover('today')}
-            aria-label="Open Today"
-            aria-expanded={activePopover === 'today'}
-            title={liveStatus}
-          >
-            <Target size={15} />
-            <span>{dueTodayCount || Math.max(1, studyItems.length)}</span>
-          </button>
-          <nav className="island-minimal-strip no-drag" aria-label="StudyDesk features" onKeyDown={handleDockKeyDown}>
-            {dockItems.map(item => (
-              <FeatureButton
-                key={item.id}
-                item={item}
-                active={activePopover === item.id}
-                setRef={node => { triggerRefs.current[item.id] = node }}
-                onClick={() => togglePopover(item.id)}
-              />
-            ))}
-          </nav>
-          <div className="island-live-status" title={liveStatus}>{liveStatus}</div>
-        </div>
-
-        {activePopover && (
-          <section
-            className="island-expanded-region no-drag"
-            id={`island-popover-${activePopover}`}
-            role="region"
-            aria-label={`${activePopover} popover`}
-          >
-            <PopoverContent />
-            <div className="island-popover-footer">
-              <button onClick={() => closePopover()}>Close</button>
-              <button onClick={openWorkspace}>Open full workspace</button>
-            </div>
-          </section>
-        )}
-      </div>
-    </div>
-  )
-}
-
-
-function FeatureButton({
-  item,
-  active,
-  setRef,
-  onClick,
-}: {
-  item: { id: FeatureId; label: string; icon: React.ReactNode; badge?: number };
-  active: boolean;
-  setRef: (node: HTMLButtonElement | null) => void;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      ref={setRef}
-      className={cn('island-dock-icon', active && 'active')}
-      data-feature={item.id}
-      onClick={onClick}
-      aria-label={item.label}
-      aria-expanded={active}
-      aria-controls={`island-popover-${item.id}`}
-      title={item.label}
+    <NotchShell
+      activeFeature={activePopover}
+      hoverDock={hoverDock}
+      captureFlash={captureFlash}
+      isRunning={state.isRunning}
+      dockItems={dockItems}
+      idleChips={idleChips}
+      liveStatus={liveStatus}
+      onRootMouseDown={handleRootMouseDown}
+      onMouseEnter={openHoverDock}
+      onMouseLeave={closeHoverDock}
+      onFocusCapture={openHoverDock}
+      onBlurCapture={handleShellBlur}
+      onTimerClick={handleStartPause}
+      onFeatureClick={handleFeatureClick}
+      onDockKeyDown={handleDockKeyDown}
+      setTriggerRef={setTriggerRef}
+      onClosePopover={() => closePopover()}
+      onOpenWorkspace={openWorkspace}
     >
-      {item.icon}
-      {!!item.badge && <span>{item.badge > 99 ? '99+' : item.badge}</span>}
-    </button>
+      {renderedPopover}
+    </NotchShell>
   )
 }
+
 
 function PopoverPanel({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (

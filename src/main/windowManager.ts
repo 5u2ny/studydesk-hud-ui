@@ -8,6 +8,10 @@ const PHASE_TRAY_COLORS: Record<string, string> = {
   focus: '#ef4444', break: '#22c55e', longBreak: '#3b82f6',
 };
 
+// macOS clamps borderless utility windows below the menu bar when y === bounds.y.
+// Offset from the absolute display top so the visible notch cap touches y=0.
+const NOTCH_TOP_EDGE_COMPENSATION = 0;
+
 function getRendererUrl(page: string): string {
   return `file://${path.join(__dirname, '..', '..', 'renderer', 'src', 'renderer', page, 'index.html')}`;
 }
@@ -46,40 +50,33 @@ export class WindowManager {
   private lastTrayProgress = -1;
   private lastTrayPhase: TimerPhase | null = null;
 
-  // ── Spotlight-style command bar ────────────────────────────────────────
-  // Modeled on https://github.com/ospfranco/sol — top-center, biased above
-  // the vertical midline (Sol uses visibleFrame.height * 0.3 above center).
-  // Uses macOS `vibrancy` for true NSVisualEffectView blur instead of CSS.
+  // ── StudyDesk notch surface ───────────────────────────────────────────
+  // Top-center and attached to the absolute display bounds, so the surface
+  // visually grows from the physical notch/menu-bar edge instead of floating
+  // below the macOS work area.
   createFloatingWindow(): BrowserWindow {
-    const { workArea } = screen.getPrimaryDisplay();
-    const { x: dx, y: dy, width: dw, height: dh } = workArea;
+    const { bounds } = screen.getPrimaryDisplay();
+    const { x: dx, y: dy, width: dw } = bounds;
 
-    const BAR_W = 728, BAR_H = 72;
-    // Sol-inspired positioning: horizontal center, ~25% from top
+    const BAR_W = 260, BAR_H = 42;
     const x = dx + Math.round((dw - BAR_W) / 2);
-    const y = dy + Math.round(dh * 0.18);
+    const y = dy - NOTCH_TOP_EDGE_COMPENSATION;
 
     const win = new BrowserWindow({
       width: BAR_W, height: BAR_H,
       x, y,
+      type: 'panel',
       frame: false, transparent: true, hasShadow: true,
       alwaysOnTop: true, skipTaskbar: true,
       resizable: false, movable: true, show: false,
-      // 'sidebar' = macOS Liquid Glass dark material (the same frosted layer
-      // Apple uses for the Spotlight panel and Notification Center). Pairs
-      // with a translucent dark CSS tint so white text stays readable while
-      // the wallpaper still shows through. Light vibrancy ('fullscreen-ui')
-      // looked good against dark wallpapers but made white text invisible
-      // against bright photos — sidebar fixes that universally.
-      vibrancy: 'sidebar',
-      visualEffectState: 'active',
+      backgroundColor: '#00000000',
       webPreferences: {
         preload: getPreloadPath('floatingPreload'),
         contextIsolation: true, nodeIntegration: false, sandbox: false,
       },
     });
 
-    win.setAlwaysOnTop(true, 'floating');
+    win.setAlwaysOnTop(true, 'screen-saver');
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.loadURL(getRendererUrl('floating'));
     win.once('ready-to-show', () => { win.show(); });
@@ -93,6 +90,17 @@ export class WindowManager {
     });
 
     this.floatingWindow = win;
+
+    try {
+      const addonPath = path.join(__dirname, '..', '..', '..', 'build', 'Release', 'notch_helper.node');
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const notchHelper = require(addonPath);
+      const result = notchHelper.makePanel(win.getNativeWindowHandle());
+      console.log('[main] Native makePanel result:', result);
+    } catch (e) {
+      console.warn('[main] Native addon failed to load or makePanel:', e);
+    }
+
     return win;
   }
 
@@ -280,23 +288,21 @@ export class WindowManager {
     if (isIsland) {
       if (!this.islandSavedBounds) this.islandSavedBounds = win.getBounds();
       const currentDisplay = screen.getDisplayMatching(win.getBounds());
-      const { workArea } = currentDisplay;
-      const newX = workArea.x + Math.round((workArea.width - targetW) / 2);
-      win.setBounds({ x: newX, y: workArea.y + 12, width: targetW, height }, true);
+      const { bounds } = currentDisplay;
+      const newX = bounds.x + Math.round((bounds.width - targetW) / 2);
+      win.setBounds({ x: newX, y: bounds.y - NOTCH_TOP_EDGE_COMPENSATION, width: targetW, height }, true);
     } else if (isIsland === false && this.islandSavedBounds) {
-      // Always recenter when restoring from island — Spotlight pattern
       const display = screen.getDisplayMatching(win.getBounds());
-      const { workArea } = display;
-      const newX = workArea.x + Math.round((workArea.width - targetW) / 2);
-      win.setBounds({ x: newX, y: workArea.y + 12, width: targetW, height }, true);
+      const { bounds } = display;
+      const newX = bounds.x + Math.round((bounds.width - targetW) / 2);
+      win.setBounds({ x: newX, y: bounds.y - NOTCH_TOP_EDGE_COMPENSATION, width: targetW, height }, true);
       this.islandSavedBounds = null;
     } else {
       // Spotlight stays top-center on every resize, expanding downward
-      const [, y] = win.getPosition();
       const display = screen.getDisplayMatching(win.getBounds());
-      const { workArea } = display;
-      const newX = workArea.x + Math.round((workArea.width - targetW) / 2);
-      win.setBounds({ x: newX, y, width: targetW, height }, true);
+      const { bounds } = display;
+      const newX = bounds.x + Math.round((bounds.width - targetW) / 2);
+      win.setBounds({ x: newX, y: bounds.y - NOTCH_TOP_EDGE_COMPENSATION, width: targetW, height }, true);
     }
   }
 

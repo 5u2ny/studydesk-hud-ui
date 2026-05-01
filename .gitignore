@@ -12,3 +12,6 @@ graphify-out/
 .focus-os-store.test.json
 coverage/
 .learnings/
+
+build/
+bin/
