@@ -118,7 +118,8 @@
     border-radius: 8px;
   }
 
-  .drag-region { -webkit-app-region: drag; }
+  /* Notch is pinned — drag-region intentionally a no-op. */
+  .drag-region { -webkit-app-region: no-drag; }
   .no-drag { -webkit-app-region: no-drag; }
 
   /* Phase-tinted accents */

@@ -91,6 +91,7 @@ const INVOKE_CHANNELS = new Set<string>([
   'window:openWorkspace',
   'window:toggleSidebar',
   'window:openSettings',
+  'window:getNotchHeight',
 ]);
 
 const SUBSCRIBE_CHANNELS = new Set<string>([
@@ -133,6 +134,7 @@ contextBridge.exposeInMainWorld('focusAPI', {
   getState:     () => ipcRenderer.invoke(IPC.STATE_GET),
   resizeWindow: (height: number, width?: number, isIsland?: boolean) =>
     ipcRenderer.invoke(IPC.WINDOW_RESIZE, height, width, isIsland),
+  getNotchHeight: () => ipcRenderer.invoke('window:getNotchHeight') as Promise<number>,
 
   // ── Timer push ─────────────────────────────────────────────────────────
   onTimerTick:        (cb: (d: any) => void) => ipcRenderer.on(IPC.TIMER_TICK,         (_e, d) => cb(d)),

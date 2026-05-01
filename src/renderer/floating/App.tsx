@@ -107,10 +107,24 @@ export default function App() {
   const activeTrigger = useRef<FeatureId | null>(null)
   const triggerRefs = useRef<Partial<Record<FeatureId, HTMLButtonElement | null>>>({})
 
+  // Live hardware notch height. Idle / hoverDock / workspaceOpening all
+  // use this for window height so the shell matches the physical notch
+  // pixel-for-pixel; activePopover keeps its own larger height.
+  const [notchHeight, setNotchHeight] = useState<number>(38)
+  useEffect(() => {
+    window.focusAPI.getNotchHeight?.().then((h: number) => {
+      if (h && h > 0) {
+        setNotchHeight(h)
+        document.documentElement.style.setProperty('--actual-notch-height', `${h}px`)
+      }
+    }).catch(() => {})
+  }, [])
+
   const resizeNotch = useCallback((notchState: NotchState) => {
     const size = getNotchSize(notchState)
-    window.focusAPI.resizeWindow(size.h, size.w, true)
-  }, [])
+    const h = notchState === 'activePopover' ? size.h : notchHeight
+    window.focusAPI.resizeWindow(h, size.w, true)
+  }, [notchHeight])
 
   const refreshAcademic = useCallback(async () => {
     const [todayData, courseData, deadlineData, captureData, studyData, confusionData, alertData, noteData] = await Promise.all([
@@ -314,16 +328,29 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [activePopover, showSettings, closeSettings, closePopover, togglePopover, handleStartPause])
 
+  // Tiny grace window so quick mouse-outs (crossing button gaps,
+  // overshooting the wing edge by a few pixels) don't collapse the dock
+  // and re-trigger the resize animation.
+  const closeTimer = useRef<number | null>(null)
+
   const openHoverDock = useCallback(() => {
     if (activePopover || showSettings) return
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
     setHoverDock(true)
     resizeNotch('hoverDock')
   }, [activePopover, showSettings, resizeNotch])
 
   const closeHoverDock = useCallback(() => {
     if (activePopover || showSettings) return
-    setHoverDock(false)
-    resizeNotch('idle')
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null
+      setHoverDock(false)
+      resizeNotch('idle')
+    }, 150)
   }, [activePopover, showSettings, resizeNotch])
 
   const handleShellBlur = useCallback((event: React.FocusEvent<HTMLDivElement>) => {
@@ -400,15 +427,12 @@ export default function App() {
     formatDeadline: deadline => `${deadline.title} · ${dueLabel(deadline.deadlineAt)}`,
   })
 
+  // Right-wing dock — limited to 3 items so the shell never widens enough
+  // to encroach on other apps' menu-bar status icons or window title bars.
   const dockItems: NotchDockItem[] = [
-    { id: 'today', label: 'Today', title: 'What needs attention now', icon: <Target size={17} /> },
-    { id: 'courses', label: 'Courses', title: 'Organize work by class', icon: <GraduationCap size={17} /> },
-    { id: 'deadlines', label: 'Deadlines', title: 'Due work, not calendar clutter', icon: <CalendarDays size={17} />, badge: badges.deadlines },
-    { id: 'capture', label: 'Capture', title: 'Turn highlights into study material', icon: <Bookmark size={17} />, badge: badges.capture },
-    { id: 'study', label: 'Study', title: 'Review queue and parked questions', icon: <Brain size={17} />, badge: badges.study },
-    { id: 'alerts', label: 'Alerts', title: 'Academic items that need attention', icon: <Bell size={17} />, badge: badges.alerts },
-    { id: 'workspace', label: 'Workspace', title: 'Open the full native academic workspace', icon: <FileText size={17} /> },
-    { id: 'settings', label: 'Settings', title: 'HUD controls and preferences', icon: <SettingsIcon size={17} /> },
+    { id: 'today',     label: 'Today',     title: 'What needs attention now',          icon: <Target size={14} /> },
+    { id: 'deadlines', label: 'Deadlines', title: 'Due work, not calendar clutter',    icon: <CalendarDays size={14} />, badge: badges.deadlines },
+    { id: 'settings',  label: 'Settings',  title: 'HUD controls and preferences',      icon: <SettingsIcon size={14} /> },
   ]
 
   const PopoverContent = () => {

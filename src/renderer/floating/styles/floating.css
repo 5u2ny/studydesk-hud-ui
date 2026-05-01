@@ -4683,82 +4683,49 @@ body {
   overflow: visible;
 }
 
+/*
+ * Notch shell — pure matte black, no overlay/halo/shadow. The top half
+ * sits behind the physical hardware notch (intentionally hidden); the
+ * shape is wider and taller than the notch so the spillover at the
+ * sides + bottom reads as one continuous "extended notch", same idea as
+ * the Dynamic Island and boring.notch. Width grows on hover before
+ * height — sideways first, then downward.
+ */
+/*
+ * Notch shell — pinned, exact height of the hardware notch (set at
+ * runtime via --actual-notch-height). The middle portion sits behind
+ * the physical notch; visible wings on the left and right hold the UI.
+ *
+ * Width is driven by the Electron BrowserWindow setBounds animation
+ * (smooth native easing). The shell just fills the window, so there's
+ * a single source of truth for the morph — no competing CSS+native
+ * animations fighting each other.
+ */
 .studydesk-notch-shell {
-  --notch-cap-width: 210px;
-  --notch-cap-height: 34px;
+  --actual-notch-height: 38px; /* runtime fallback; JS overrides */
+  --notch-cap-height: var(--actual-notch-height);
   position: relative;
   top: 0;
   margin-top: 0;
   padding-top: 0;
-  width: var(--notch-cap-width);
+  width: 100%;
   height: var(--notch-cap-height);
   min-height: 0;
   padding: 0;
   overflow: visible;
-  transform-origin: top center;
   color: #f5f5f7;
-  background: #020204;
-  border: 0;
-  border-radius: 0 0 24px 24px;
-  backdrop-filter: blur(30px) saturate(1.18);
-  -webkit-backdrop-filter: blur(30px) saturate(1.18);
-  filter: none;
-  box-shadow:
-    inset 0 -1px 0 rgba(255, 255, 255, 0.10),
-    0 8px 22px rgba(0, 0, 0, 0.30);
-  transition:
-    width 190ms cubic-bezier(0.16, 1, 0.3, 1),
-    height 190ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-radius 190ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 190ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.studydesk-notch-shell::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 50%;
-  z-index: -1;
-  width: 180px;
-  height: 18px;
-  transform: translateX(-50%);
-  border-radius: 0 0 14px 14px;
   background: #000;
-  box-shadow:
-    inset 0 -1px 0 rgba(255, 255, 255, 0.08),
-    0 8px 20px rgba(0, 0, 0, 0.38);
-}
-
-.studydesk-notch-shell::after {
-  content: '';
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.13), transparent 42%),
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.10), transparent 44%);
-  opacity: 0.86;
-}
-
-.studydesk-notch-shell.capture-flash {
-  box-shadow:
-    inset 0 -1px 0 rgba(255, 255, 255, 0.14),
-    0 8px 22px rgba(0, 0, 0, 0.30),
-    0 0 28px rgba(10, 132, 255, 0.30);
+  border: 0;
+  border-radius: 0 0 22px 22px;
+  filter: none;
+  box-shadow: none;
+  -webkit-app-region: no-drag;
 }
 
 .studydesk-notch-shell.is-hover-dock,
 .studydesk-notch-shell.is-expanded {
-  width: 100%;
-  height: 100%;
-  border-radius: 0 0 28px 28px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.11), transparent 38%),
-    linear-gradient(180deg, rgba(15, 15, 18, 0.98), rgba(1, 1, 3, 0.96));
-  box-shadow:
-    inset 0 -1px 0 rgba(255, 255, 255, 0.10),
-    0 18px 48px rgba(0, 0, 0, 0.42);
+  border-radius: 0 0 22px 22px;
+  background: #000;
 }
 
 .studydesk-notch-bar {
@@ -4768,27 +4735,30 @@ body {
   height: 100%;
   min-height: 0;
   display: flex;
+  /* Idle on left wing, dock on right wing — middle is hidden by the
+   * physical notch. Idle uses margin-right:auto to claim the gap. */
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 3px 10px 7px;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 14px;
 }
 
 .studydesk-notch-shell.is-hover-dock .studydesk-notch-bar,
 .studydesk-notch-shell.is-expanded .studydesk-notch-bar {
-  height: 62px;
-  align-items: flex-end;
-  padding: 16px 14px 8px;
+  align-items: center;
+  padding: 0 14px;
 }
 
 .studydesk-notch-idle {
   min-width: 0;
-  width: 100%;
   height: 100%;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  align-items: center;
+  justify-content: flex-start;
   gap: 4px;
+  /* Pushes the dock to the right wing so the middle gap is the
+   * physical notch area. */
+  margin-right: auto;
 }
 
 .studydesk-notch-chip {
@@ -4825,44 +4795,51 @@ body {
   max-width: 72px;
 }
 
-.studydesk-notch-dock,
-.studydesk-notch-status {
-  display: none;
-}
+/* Hide the verbose status text — the timer chip in idle is enough. */
+.studydesk-notch-status { display: none; }
 
-.studydesk-notch-shell.is-hover-dock .studydesk-notch-idle,
-.studydesk-notch-shell.is-expanded .studydesk-notch-idle {
-  display: none;
+/* Dock is hidden in idle, fades + slides in when hovered. Coexists with
+ * the timer (idle on left wing, dock on right wing). The slight x-shift
+ * gives the icons a "settling into place" feel as the shell widens. */
+.studydesk-notch-dock {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 100%;
+  opacity: 0;
+  transform: translateX(8px);
+  pointer-events: none;
+  transition:
+    opacity 200ms cubic-bezier(0.32, 0.72, 0, 1) 60ms,
+    transform 240ms cubic-bezier(0.32, 0.72, 0, 1) 60ms;
 }
 
 .studydesk-notch-shell.is-hover-dock .studydesk-notch-dock,
 .studydesk-notch-shell.is-expanded .studydesk-notch-dock {
-  display: flex;
-}
-
-.studydesk-notch-dock {
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
 .studydesk-notch-feature-button {
   position: relative;
-  width: 42px;
-  height: 42px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
   border-radius: 999px;
-  color: rgba(245, 245, 247, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background:
-    radial-gradient(circle at 40% 20%, rgba(255, 255, 255, 0.14), transparent 38%),
-    rgba(255, 255, 255, 0.055);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    0 5px 12px rgba(0, 0, 0, 0.18);
+  color: rgba(245, 245, 247, 0.62);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   cursor: pointer;
-  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.studydesk-notch-feature-button > svg {
+  width: 14px;
+  height: 14px;
 }
 
 .studydesk-notch-feature-button:hover,
@@ -4870,10 +4847,7 @@ body {
 .studydesk-notch-feature-button.active {
   outline: none;
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.26);
-  background:
-    radial-gradient(circle at 40% 20%, rgba(255, 255, 255, 0.18), transparent 38%),
-    rgba(var(--phase-r), var(--phase-g), var(--phase-b), 0.20);
+  background: rgba(255, 255, 255, 0.10);
 }
 
 .studydesk-notch-feature-button.active::after {

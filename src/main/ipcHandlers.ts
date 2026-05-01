@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, screen } from 'electron';
 import { IPC } from '../renderer/shared/types';
 import type { AppSettings } from '../renderer/shared/types';
 import { stateStore } from './stateStore';
@@ -97,6 +97,15 @@ export function setupIPC() {
   ipcMain.handle(IPC.STATE_GET,    () => stateStore.getSnapshot());
   ipcMain.handle(IPC.WINDOW_RESIZE, (_e, h: number, w?: number, isIsland?: boolean) => {
     windowManager.resizeFloating(Math.round(h), w ? Math.round(w) : undefined, isIsland);
+  });
+
+  // Returns the EXACT hardware notch / menu-bar height for the primary
+  // display (e.g. 38 on M-series MacBook Pro, 32 on Air, 25 on older non-
+  // notched Macs). Renderer applies this so the shell matches pixel-for-
+  // pixel — no manual fudging.
+  ipcMain.handle('window:getNotchHeight', () => {
+    const display = screen.getPrimaryDisplay();
+    return Math.max(display.workArea.y - display.bounds.y, 0);
   });
 
   // Timer toggle push event from renderer shortcut

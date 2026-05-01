@@ -55,10 +55,15 @@ export class WindowManager {
   // visually grows from the physical notch/menu-bar edge instead of floating
   // below the macOS work area.
   createFloatingWindow(): BrowserWindow {
-    const { bounds } = screen.getPrimaryDisplay();
+    const display = screen.getPrimaryDisplay();
+    const { bounds } = display;
     const { x: dx, y: dy, width: dw } = bounds;
 
-    const BAR_W = 260, BAR_H = 42;
+    // Use the hardware notch / menu-bar height as the shell height so it
+    // matches pixel-for-pixel (38 on M-series Pro, 32 on Air, etc.).
+    const NOTCH_H = Math.max(display.workArea.y - display.bounds.y, 32);
+    const BAR_W = 320;
+    const BAR_H = NOTCH_H;
     const x = dx + Math.round((dw - BAR_W) / 2);
     const y = dy - NOTCH_TOP_EDGE_COMPENSATION;
 
@@ -66,9 +71,11 @@ export class WindowManager {
       width: BAR_W, height: BAR_H,
       x, y,
       type: 'panel',
-      frame: false, transparent: true, hasShadow: true,
+      frame: false, transparent: true, hasShadow: false,
       alwaysOnTop: true, skipTaskbar: true,
-      resizable: false, movable: true, show: false,
+      resizable: false,
+      movable: false, // pinned to the notch — never user-draggable
+      show: false,
       backgroundColor: '#00000000',
       webPreferences: {
         preload: getPreloadPath('floatingPreload'),
@@ -79,8 +86,31 @@ export class WindowManager {
     win.setAlwaysOnTop(true, 'screen-saver');
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.loadURL(getRendererUrl('floating'));
-    win.once('ready-to-show', () => { win.show(); });
-    setTimeout(() => { if (!win.isDestroyed() && !win.isVisible()) win.show(); }, 500);
+
+    const applyNotchPanel = () => {
+      try {
+        const addonPath = path.join(__dirname, '..', '..', '..', 'build', 'Release', 'notch_helper.node');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const notchHelper = require(addonPath);
+        const result = notchHelper.makePanel(win.getNativeWindowHandle());
+        console.log('[main] Native makePanel result:', result);
+      } catch (e) {
+        console.warn('[main] Native addon failed to load or makePanel:', e);
+      }
+    };
+
+    win.once('ready-to-show', () => {
+      win.show();
+      // Run AFTER show so AppKit's own positioning has fired and our
+      // unconstrained subclass + CGSSpace placement is the last word.
+      applyNotchPanel();
+    });
+    setTimeout(() => {
+      if (!win.isDestroyed() && !win.isVisible()) {
+        win.show();
+        applyNotchPanel();
+      }
+    }, 500);
     // Forward renderer console + crash diagnostics to the terminal log.
     win.webContents.on('console-message', (_e, level, msg, line, src) => {
       if (level >= 2) console.log(`[renderer:${level}] ${msg} (${src}:${line})`);
@@ -90,16 +120,6 @@ export class WindowManager {
     });
 
     this.floatingWindow = win;
-
-    try {
-      const addonPath = path.join(__dirname, '..', '..', '..', 'build', 'Release', 'notch_helper.node');
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const notchHelper = require(addonPath);
-      const result = notchHelper.makePanel(win.getNativeWindowHandle());
-      console.log('[main] Native makePanel result:', result);
-    } catch (e) {
-      console.warn('[main] Native addon failed to load or makePanel:', e);
-    }
 
     return win;
   }
