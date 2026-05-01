@@ -20,20 +20,26 @@ export const NOTCH_GEOMETRY: NotchGeometry = {
   anchor: 'top-center',
   safeTopAttachment: true,
   topInset: 0,
-  // Tight widths so wings stay clear of other apps' menu-bar icons and
-  // the title bars of windows directly below. Heights are fallbacks —
-  // the renderer overrides them with the live hardware notch height.
-  collapsedNotchWidth: 320,
+  // Wings are sized for content, never larger.
+  //   idle  = 80px wing each side  → timer (66px content) fits with a
+  //           14px outer padding margin; hardware notch 200px in middle.
+  //   hover = 100px wing each side → dock (3 × 26px buttons + gaps +
+  //           14px padding ≈ 100px) fits on the right.
+  // Wings are equal because the shell is centred with the hardware
+  // notch — the constraint is the WIDER side's content.
+  collapsedNotchWidth: 360,
   collapsedNotchHeight: 38,
-  expandedNotchWidth: 420,
+  expandedNotchWidth: 400,
   expandedNotchHeight: 38,
-  popoverOffset: 0,
+  popoverOffset: 12,
 }
 
 export const NOTCH_SIZES: Record<NotchState, NotchSize> = {
-  idle:             { w: 320, h: 38 },
+  idle:             { w: 360, h: 38 },
   hoverDock:        { w: NOTCH_GEOMETRY.expandedNotchWidth, h: NOTCH_GEOMETRY.expandedNotchHeight },
-  activePopover:    { w: 740, h: 420 },
+  // Popover is a SEPARATE Liquid-Glass widget below the notch. Window
+  // accommodates: notch (38) + gap (12) + widget (380) = 430px tall.
+  activePopover:    { w: 540, h: 38 + 12 + 380 },
   workspaceOpening: { w: NOTCH_GEOMETRY.expandedNotchWidth, h: NOTCH_GEOMETRY.expandedNotchHeight },
 }
 

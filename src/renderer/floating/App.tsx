@@ -35,16 +35,16 @@ import {
   Bell,
   Bookmark,
   Brain,
-  CalendarDays,
   Check,
   CircleHelp,
   Clock3,
   FileText,
   GraduationCap,
   Plus,
-  Settings as SettingsIcon,
-  Target,
 } from 'lucide-react'
+// Hand-crafted SF-Symbols-style icons — crisp at 14–16px, no third-
+// party glyph library, matches macOS 26 menu-bar aesthetic.
+import { IconTarget, IconCalendar, IconGear } from './notch/SFIcons'
 
 const PHASE_RGB: Record<TimerPhase, [number, number, number]> = {
   focus: [255, 77, 77],
@@ -427,12 +427,12 @@ export default function App() {
     formatDeadline: deadline => `${deadline.title} · ${dueLabel(deadline.deadlineAt)}`,
   })
 
-  // Right-wing dock — limited to 3 items so the shell never widens enough
-  // to encroach on other apps' menu-bar status icons or window title bars.
+  // Right-wing dock — three SF-Symbols-style icons hand-crafted for the
+  // small (14px) menu-bar size.
   const dockItems: NotchDockItem[] = [
-    { id: 'today',     label: 'Today',     title: 'What needs attention now',          icon: <Target size={14} /> },
-    { id: 'deadlines', label: 'Deadlines', title: 'Due work, not calendar clutter',    icon: <CalendarDays size={14} />, badge: badges.deadlines },
-    { id: 'settings',  label: 'Settings',  title: 'HUD controls and preferences',      icon: <SettingsIcon size={14} /> },
+    { id: 'today',     label: 'Today',     title: 'What needs attention now',       icon: <IconTarget size={14} /> },
+    { id: 'deadlines', label: 'Deadlines', title: 'Due work, not calendar clutter', icon: <IconCalendar size={14} />, badge: badges.deadlines },
+    { id: 'settings',  label: 'Settings',  title: 'HUD controls and preferences',   icon: <IconGear size={14} /> },
   ]
 
   const PopoverContent = () => {
@@ -569,7 +569,7 @@ export default function App() {
                 <span>Capture settings</span>
               </button>
               <button onClick={openSettingsPanel}>
-                <SettingsIcon size={16} />
+                <IconGear size={16} />
                 <span>Full settings</span>
               </button>
             </div>
@@ -613,6 +613,9 @@ export default function App() {
       dockItems={dockItems}
       idleChips={idleChips}
       liveStatus={liveStatus}
+      remainingSeconds={state.remainingSeconds}
+      totalSeconds={state.totalSeconds}
+      phaseLabel={phaseLabel}
       onRootMouseDown={handleRootMouseDown}
       onMouseEnter={openHoverDock}
       onMouseLeave={closeHoverDock}
@@ -652,7 +655,7 @@ function CompactList({ children }: { children: React.ReactNode }) {
 function DeadlineRow({ d, onComplete }: { d: AcademicDeadline; onComplete: () => void }) {
   return (
     <article className="student-deadline-row">
-      <div className="student-row-icon"><CalendarDays size={16} /></div>
+      <div className="student-row-icon"><IconCalendar size={16} /></div>
       <div className="min-w-0 flex-1">
         <h3>{d.title}</h3>
         <p>{dueLabel(d.deadlineAt)} · {d.type}{!d.confirmed ? ' · needs review' : ''}</p>

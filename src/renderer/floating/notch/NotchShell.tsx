@@ -14,6 +14,9 @@ export function NotchShell({
   dockItems,
   idleChips,
   liveStatus,
+  remainingSeconds,
+  totalSeconds,
+  phaseLabel,
   children,
   onRootMouseDown,
   onMouseEnter,
@@ -34,6 +37,9 @@ export function NotchShell({
   dockItems: NotchDockItem[]
   idleChips: NotchIdleChip[]
   liveStatus: string
+  remainingSeconds: number
+  totalSeconds: number
+  phaseLabel: string
   children: React.ReactNode
   onRootMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void
   onMouseEnter: () => void
@@ -50,7 +56,10 @@ export function NotchShell({
   const activeItem = activeFeature ? dockItems.find(item => item.id === activeFeature) : undefined
 
   return (
-    <div className="studydesk-notch-root" onMouseDown={onRootMouseDown}>
+    <div
+      className={cn('studydesk-notch-root', activeItem && 'has-popover')}
+      onMouseDown={onRootMouseDown}
+    >
       <div
         className={cn(
           'studydesk-notch-shell',
@@ -67,7 +76,15 @@ export function NotchShell({
         onBlurCapture={onBlurCapture}
       >
         <div className="studydesk-notch-bar drag-region" role="group" aria-label="StudyDesk Notch">
-          <NotchIdle chips={idleChips} liveStatus={liveStatus} onTimerClick={onTimerClick} />
+          <NotchIdle
+            chips={idleChips}
+            liveStatus={liveStatus}
+            onTimerClick={onTimerClick}
+            remainingSeconds={remainingSeconds}
+            totalSeconds={totalSeconds}
+            phaseLabel={phaseLabel}
+            isRunning={isRunning}
+          />
           <NotchDock
             items={dockItems}
             activeFeature={activeFeature}
@@ -77,13 +94,16 @@ export function NotchShell({
           />
           <div className="studydesk-notch-status" title={liveStatus}>{liveStatus}</div>
         </div>
-
-        {activeItem && (
-          <NotchPopover item={activeItem} onClose={onClosePopover} onOpenWorkspace={onOpenWorkspace}>
-            {children}
-          </NotchPopover>
-        )}
       </div>
+
+      {/* Popover lives OUTSIDE the shell — appears as a floating Liquid
+          Glass panel below the notch, with a transparent gap, like a
+          macOS widget. */}
+      {activeItem && (
+        <NotchPopover item={activeItem} onClose={onClosePopover} onOpenWorkspace={onOpenWorkspace}>
+          {children}
+        </NotchPopover>
+      )}
     </div>
   )
 }

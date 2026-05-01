@@ -62,7 +62,7 @@ export class WindowManager {
     // Use the hardware notch / menu-bar height as the shell height so it
     // matches pixel-for-pixel (38 on M-series Pro, 32 on Air, etc.).
     const NOTCH_H = Math.max(display.workArea.y - display.bounds.y, 32);
-    const BAR_W = 320;
+    const BAR_W = 360;
     const BAR_H = NOTCH_H;
     const x = dx + Math.round((dw - BAR_W) / 2);
     const y = dy - NOTCH_TOP_EDGE_COMPENSATION;

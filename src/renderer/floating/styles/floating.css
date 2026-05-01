@@ -4670,15 +4670,14 @@ body {
 .studydesk-notch-root {
   position: fixed;
   top: 0;
-  margin-top: 0;
-  padding-top: 0;
-  left: 50%;
+  left: 0;
   width: 100%;
   height: 100%;
-  transform: translateX(-50%);
+  /* Stack the notch shell vertically with the floating widget popover
+   * underneath. align-items:center keeps both horizontally centered. */
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   padding: 0;
   overflow: visible;
 }
@@ -4696,36 +4695,47 @@ body {
  * runtime via --actual-notch-height). The middle portion sits behind
  * the physical notch; visible wings on the left and right hold the UI.
  *
- * Width is driven by the Electron BrowserWindow setBounds animation
- * (smooth native easing). The shell just fills the window, so there's
- * a single source of truth for the morph — no competing CSS+native
- * animations fighting each other.
+ * The bottom edge has a generous radius and the inner-top corners
+ * (where wings meet the hardware notch boundary) get inverted/concave
+ * curves via two ::before / ::after pseudo-elements — same pattern as
+ * the Dynamic Island, so wings flow smoothly out of the notch instead
+ * of looking like a separate floating bar.
+ *
+ * Width is driven by Electron's setBounds (native easing). The shell
+ * just fills the window — single source of truth for the morph.
  */
 .studydesk-notch-shell {
-  --actual-notch-height: 38px; /* runtime fallback; JS overrides */
+  --actual-notch-height: 38px;          /* runtime fallback; JS overrides */
   --notch-cap-height: var(--actual-notch-height);
+  /* Shell width is FIXED to its current state — never stretches with
+   * the window. When the popover opens the window grows wider for the
+   * widget below, but the notch stays the same compact size. */
+  --shell-width: 360px;
   position: relative;
   top: 0;
-  margin-top: 0;
-  padding-top: 0;
-  width: 100%;
+  margin: 0;
+  padding: 0;
+  width: var(--shell-width);
   height: var(--notch-cap-height);
   min-height: 0;
-  padding: 0;
   overflow: visible;
   color: #f5f5f7;
   background: #000;
   border: 0;
-  border-radius: 0 0 22px 22px;
+  /* Flat top (flush with the screen edge / notch hardware), subtle
+   * rounded bottom corners — same profile as the hardware notch. */
+  border-radius: 0 0 14px 14px;
   filter: none;
   box-shadow: none;
   -webkit-app-region: no-drag;
+  transition: width 240ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .studydesk-notch-shell.is-hover-dock,
 .studydesk-notch-shell.is-expanded {
-  border-radius: 0 0 22px 22px;
+  --shell-width: 400px;
   background: #000;
+  border-radius: 0 0 14px 14px;
 }
 
 .studydesk-notch-bar {
@@ -4755,10 +4765,49 @@ body {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 4px;
+  gap: 6px;
   /* Pushes the dock to the right wing so the middle gap is the
    * physical notch area. */
   margin-right: auto;
+}
+
+/* Circular timer ring (left wing) — macOS Activity-style. The arc
+ * colour follows --phase-r/g/b so the ring tints itself by phase. */
+.notch-timer-ring {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 6px 0 2px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: rgb(var(--phase-r) var(--phase-g) var(--phase-b));
+  font-feature-settings: 'tnum' 1, 'cv11' 1; /* tabular numerals */
+}
+
+.notch-timer-ring > svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.notch-timer-ring-time {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: rgba(245, 245, 247, 0.92);
+  font-variant-numeric: tabular-nums;
+  /* Steady width so the time doesn't jitter while it counts down. */
+  min-width: 38px;
+}
+
+.notch-timer-ring.running .notch-timer-ring-time {
+  color: #fff;
+}
+
+.notch-timer-ring:hover .notch-timer-ring-time,
+.notch-timer-ring:focus-visible .notch-timer-ring-time {
+  color: #fff;
 }
 
 .studydesk-notch-chip {
@@ -4822,19 +4871,25 @@ body {
   pointer-events: auto;
 }
 
+/* Dock button — macOS 26 Liquid Glass: subtle translucent fill that
+ * tints on hover, no harsh borders. Sized to fit a 38px notch with
+ * 4px breathing room. */
 .studydesk-notch-feature-button {
   position: relative;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
   border-radius: 999px;
-  color: rgba(245, 245, 247, 0.62);
+  color: rgba(245, 245, 247, 0.78);
   border: 0;
   background: transparent;
   box-shadow: none;
   cursor: pointer;
-  transition: color 140ms ease, background 140ms ease;
+  transition:
+    color 160ms cubic-bezier(0.32, 0.72, 0, 1),
+    background 160ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 160ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .studydesk-notch-feature-button > svg {
@@ -4842,12 +4897,18 @@ body {
   height: 14px;
 }
 
+.studydesk-notch-feature-button:active {
+  transform: scale(0.92);
+}
+
 .studydesk-notch-feature-button:hover,
 .studydesk-notch-feature-button:focus-visible,
 .studydesk-notch-feature-button.active {
   outline: none;
   color: #fff;
-  background: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
 }
 
 .studydesk-notch-feature-button.active::after {
@@ -4877,27 +4938,150 @@ body {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
 }
 
+/*
+ * macOS 26 Liquid-Glass widget — disconnected from the notch by a
+ * transparent 12px gap, sized like a Tahoe medium widget.
+ *
+ *  - Heavy backdrop blur + saturation boost = the "vibrancy" you see
+ *    in real macOS widgets (the desktop tints through).
+ *  - Hairline white border at 18% (mac-style 0.5px stroke).
+ *  - Layered shadow: tight + soft drop, plus an inset top highlight.
+ *  - All four corners 22px (Tahoe widget radius).
+ *  - No internal chrome — strips the legacy "island" panel styling
+ *    inside so children render flush against the glass.
+ */
 .studydesk-notch-popover {
   position: relative;
   z-index: 1;
-  height: calc(100% - 62px);
-  padding: 0 12px 12px;
-  animation: notchEmerge 190ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  margin-top: 12px;                 /* transparent gap below the notch */
+  width: 540px;
+  height: 380px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 22px;
+  overflow: hidden;
+  color: #f5f5f7;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015)),
+    rgba(30, 30, 34, 0.58);
+  backdrop-filter: blur(48px) saturate(1.8);
+  -webkit-backdrop-filter: blur(48px) saturate(1.8);
+  border: 0.5px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    0 18px 48px rgba(0, 0, 0, 0.46);
+  animation: widgetEmerge 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
-@keyframes notchEmerge {
-  from { opacity: 0; transform: translateY(-10px) scaleY(0.96); transform-origin: top center; }
-  to { opacity: 1; transform: translateY(0) scaleY(1); transform-origin: top center; }
+@keyframes widgetEmerge {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.studydesk-notch-popover::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 24px;
-  right: 24px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+/* ── Widget chrome ─────────────────────────────────────────────────── */
+.studydesk-notch-popover .widget-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 10px;
+}
+
+.studydesk-notch-popover .widget-icon {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: rgba(245, 245, 247, 0.92);
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.10);
+}
+
+.studydesk-notch-popover .widget-title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.studydesk-notch-popover .widget-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.studydesk-notch-popover .widget-action {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(245, 245, 247, 0.62);
+  cursor: pointer;
+  transition:
+    color 140ms cubic-bezier(0.32, 0.72, 0, 1),
+    background 140ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.studydesk-notch-popover .widget-action:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.studydesk-notch-popover .widget-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 14px 14px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.studydesk-notch-popover .widget-body::-webkit-scrollbar { width: 6px; }
+.studydesk-notch-popover .widget-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+}
+
+/* ── Strip the legacy "island" chrome inside the widget ───────────── */
+.studydesk-notch-popover .island-popover-panel {
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: 0;
+  animation: none;
+}
+
+.studydesk-notch-popover .island-popover-header {
+  /* Widget already has its own header — hide the inner one. */
+  display: none;
+}
+
+.studydesk-notch-popover .island-popover-body {
+  height: auto;
+  padding: 0;
+  overflow: visible;
+}
+
+.studydesk-notch-popover .island-popover-footer {
+  /* Footer's primary actions moved to widget-actions in the header. */
+  display: none;
 }
 
 .studydesk-notch-active-title {
@@ -4935,15 +5119,13 @@ body {
 }
 
 .studydesk-notch-popover .island-popover-panel {
+  flex: 1 1 auto;
   width: 100%;
-  height: calc(100% - 72px);
   margin: 0;
-  border-radius: 0 0 22px 22px;
+  border-radius: 14px;
   overflow: hidden;
   color: #f5f5f7;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.025)),
-    rgba(8, 8, 11, 0.44);
+  background: transparent;
   border: 0;
   box-shadow: none;
 }
