@@ -1,11 +1,18 @@
 import { describe, expect, test } from 'vitest'
-import { getNotchGeometry, getNotchSize, NOTCH_SIZES, type NotchState } from './notchSizing'
+import { getNotchGeometry, getNotchSize, NOTCH_SIZES, PHYSICAL_NOTCH_WIDTH, NOTCH_WING_WIDTH, type NotchState } from './notchSizing'
 
 describe('notch sizing', () => {
-  test('fixed cap: idle and hoverDock use the same small size', () => {
-    expect(getNotchSize('idle')).toEqual({ w: 220, h: 38 })
-    expect(getNotchSize('hoverDock')).toEqual({ w: 220, h: 38 })
-    expect(getNotchSize('workspaceOpening')).toEqual({ w: 220, h: 38 })
+  test('physical notch constants', () => {
+    expect(PHYSICAL_NOTCH_WIDTH).toBe(180)
+    expect(NOTCH_WING_WIDTH).toBe(120)
+  })
+
+  test('idle bar = left wing + cap + right wing (120 + 180 + 120 = 420px)', () => {
+    const barW = NOTCH_WING_WIDTH + PHYSICAL_NOTCH_WIDTH + NOTCH_WING_WIDTH
+    expect(barW).toBe(420)
+    expect(getNotchSize('idle')).toEqual({ w: barW, h: 38 })
+    expect(getNotchSize('hoverDock')).toEqual({ w: barW, h: 38 })
+    expect(getNotchSize('workspaceOpening')).toEqual({ w: barW, h: 38 })
   })
 
   test('activePopover uses a wider window for the widget below', () => {
@@ -25,12 +32,11 @@ describe('notch sizing', () => {
     expect(Object.keys(NOTCH_SIZES).sort()).toEqual([...states].sort())
   })
 
-  test('defines a top-center physical notch geometry with fixed cap', () => {
+  test('defines a top-center physical notch geometry', () => {
     const g = getNotchGeometry()
     expect(g.anchor).toBe('top-center')
     expect(g.safeTopAttachment).toBe(true)
-    expect(g.collapsedNotchWidth).toBe(220)
-    expect(g.expandedNotchWidth).toBe(220)
-    expect(g.collapsedNotchWidth).toBe(g.expandedNotchWidth)
+    expect(g.collapsedNotchWidth).toBe(PHYSICAL_NOTCH_WIDTH)
+    expect(g.expandedNotchWidth).toBe(PHYSICAL_NOTCH_WIDTH)
   })
 })

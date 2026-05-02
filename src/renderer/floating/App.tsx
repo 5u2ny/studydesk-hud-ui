@@ -24,7 +24,6 @@ import {
   getNotchBadges,
   getNotchIdleChips,
   getNotchLiveStatus,
-  NOTCH_FEATURE_ORDER,
   type NotchFeatureId,
 } from './notch/notchModel'
 import { getNotchSize, type NotchState } from './notch/notchSizing'
@@ -44,7 +43,7 @@ import {
 } from 'lucide-react'
 // Hand-crafted SF-Symbols-style icons — crisp at 14–16px, no third-
 // party glyph library, matches macOS 26 menu-bar aesthetic.
-import { IconTarget, IconCalendar, IconGear } from './notch/SFIcons'
+import { IconTarget, IconCalendar, IconGear, IconCourses } from './notch/SFIcons'
 
 const PHASE_RGB: Record<TimerPhase, [number, number, number]> = {
   focus: [255, 77, 77],
@@ -85,7 +84,6 @@ function dueLabel(ts?: number) {
 export default function App() {
   const state = useAppState()
   const [activePopover, setActivePopover] = useState<FeatureId | null>(() => (window as any).__FOCUS_OS_WEB_PREVIEW__ ? 'today' : null)
-  const [hoverDock, setHoverDock] = useState(false)
   const [workspaceOpening, setWorkspaceOpening] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [focusSettings, setFocusSettings] = useState<Settings | null>(null)
@@ -104,6 +102,7 @@ export default function App() {
   const [newDeadlineDate, setNewDeadlineDate] = useState('')
   const [newStudyFront, setNewStudyFront] = useState('')
   const [captureFlash, setCaptureFlash] = useState(false)
+  const [hoverDock, setHoverDock] = useState(false)
   const activeTrigger = useRef<FeatureId | null>(null)
   const triggerRefs = useRef<Partial<Record<FeatureId, HTMLButtonElement | null>>>({})
 
@@ -203,7 +202,6 @@ export default function App() {
     setActivePopover(current => {
       const value = current === next ? null : next
       resizeNotch(value ? 'activePopover' : 'idle')
-      if (value) setHoverDock(false)
       return value
     })
   }, [resizeNotch])
@@ -408,10 +406,10 @@ export default function App() {
     formatDeadline: deadline => `${deadline.title} · ${dueLabel(deadline.deadlineAt)}`,
   })
 
-  // Right-wing dock — three SF-Symbols-style icons hand-crafted for the
-  // small (14px) menu-bar size.
+  // Right-wing dock — four SF-Symbols-style icons, visible on hover.
   const dockItems: NotchDockItem[] = [
     { id: 'today',     label: 'Today',     title: 'What needs attention now',       icon: <IconTarget size={14} /> },
+    { id: 'courses',   label: 'Courses',   title: 'Organize work by class',         icon: <IconCourses size={14} /> },
     { id: 'deadlines', label: 'Deadlines', title: 'Due work, not calendar clutter', icon: <IconCalendar size={14} />, badge: badges.deadlines },
     { id: 'settings',  label: 'Settings',  title: 'HUD controls and preferences',   icon: <IconGear size={14} /> },
   ]
@@ -576,6 +574,7 @@ export default function App() {
       activeFeature={activePopover}
       captureFlash={captureFlash}
       isRunning={state.isRunning}
+      isHovering={hoverDock}
       dockItems={dockItems}
       idleChips={idleChips}
       liveStatus={liveStatus}
@@ -586,6 +585,8 @@ export default function App() {
       onCapClick={handleCapClick}
       onTimerClick={handleStartPause}
       onFeatureClick={handleFeatureClick}
+      onMouseEnter={() => setHoverDock(true)}
+      onMouseLeave={() => setHoverDock(false)}
       setTriggerRef={setTriggerRef}
       onClosePopover={() => closePopover()}
       onOpenWorkspace={openWorkspace}

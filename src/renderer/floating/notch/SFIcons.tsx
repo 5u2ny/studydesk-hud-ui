@@ -67,6 +67,24 @@ export function IconCalendar({ size = 14, className }: IconProps) {
   )
 }
 
+// Graduation cap (Courses) — SF graduationcap.fill
+export function IconCourses({ size = 14, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M8 2.5L1 6l7 3.5L15 6l-7-3.5Z" />
+      <path d="M3.5 7.5v3.5c0 1 2 2 4.5 2s4.5-1 4.5-2V7.5L8 10 3.5 7.5Z" opacity="0.85" />
+      <path d="M13.5 7v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 // Gear (Settings) — SF gearshape.fill silhouette
 export function IconGear({ size = 14, className }: IconProps) {
   return (

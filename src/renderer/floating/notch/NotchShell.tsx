@@ -3,12 +3,13 @@ import { cn } from '@shared/lib/utils'
 import type { NotchFeatureId, NotchIdleChip } from './notchModel'
 import { NotchIdle } from './NotchIdle'
 import { NotchPopover } from './NotchPopover'
-import type { NotchDockItem } from './NotchFeatureButton'
+import { NotchFeatureButton, type NotchDockItem } from './NotchFeatureButton'
 
 export function NotchShell({
   activeFeature,
   captureFlash,
   isRunning,
+  isHovering,
   dockItems,
   idleChips,
   liveStatus,
@@ -20,6 +21,8 @@ export function NotchShell({
   onCapClick,
   onTimerClick,
   onFeatureClick,
+  onMouseEnter,
+  onMouseLeave,
   setTriggerRef,
   onClosePopover,
   onOpenWorkspace,
@@ -27,6 +30,7 @@ export function NotchShell({
   activeFeature: NotchFeatureId | null
   captureFlash: boolean
   isRunning: boolean
+  isHovering: boolean
   dockItems: NotchDockItem[]
   idleChips: NotchIdleChip[]
   liveStatus: string
@@ -38,33 +42,39 @@ export function NotchShell({
   onCapClick: () => void
   onTimerClick: () => void
   onFeatureClick: (id: NotchFeatureId) => void
+  onMouseEnter: () => void
+  onMouseLeave: () => void
   setTriggerRef: (id: NotchFeatureId, node: HTMLButtonElement | null) => void
   onClosePopover: () => void
   onOpenWorkspace: () => void
 }) {
   const activeItem = activeFeature ? dockItems.find(item => item.id === activeFeature) : undefined
-
+  const showWings = isHovering || !!activeFeature
   return (
     <div
       className={cn('studydesk-notch-root', activeItem && 'has-popover')}
       onMouseDown={onRootMouseDown}
     >
-      {/* Fixed-width cap -- never changes shape. Click opens popover. */}
+      {/* Three-part layout: left wing | center cap (blank) | right wing.
+          Wings appear on hover; cap is always blank (physical notch area). */}
       <div
         className={cn(
           'studydesk-notch-shell',
           isRunning && 'is-running',
           captureFlash && 'capture-flash',
+          showWings && 'is-hover-dock',
           activeFeature && 'is-expanded',
         )}
         data-active-feature={activeFeature ?? undefined}
         data-state={activeFeature ? 'activePopover' : 'idle'}
-        onClick={onCapClick}
         role="button"
         tabIndex={0}
         aria-label="Open StudyDesk"
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
       >
-        <div className="studydesk-notch-bar" role="group" aria-label="StudyDesk Notch">
+        {/* Left wing: timer -- visible on hover */}
+        <div className="studydesk-notch-wing-left" onClick={onCapClick}>
           <NotchIdle
             chips={idleChips}
             liveStatus={liveStatus}
@@ -75,11 +85,28 @@ export function NotchShell({
             isRunning={isRunning}
           />
         </div>
+
+        {/* Center cap: physical notch area -- always blank black */}
+        <div className="studydesk-notch-cap" onClick={onCapClick} />
+
+        {/* Right wing: 4 feature icons -- visible on hover */}
+        <nav
+          className="studydesk-notch-dock-right"
+          aria-label="StudyDesk features"
+        >
+          {dockItems.map(item => (
+            <NotchFeatureButton
+              key={item.id}
+              item={item}
+              active={activeFeature === item.id}
+              setRef={node => setTriggerRef(item.id, node)}
+              onClick={() => { onFeatureClick(item.id) }}
+            />
+          ))}
+        </nav>
       </div>
 
-      {/* Popover lives OUTSIDE the shell -- appears as a floating Liquid
-          Glass panel below the notch, with a transparent gap, like a
-          macOS widget. Dock icons are inside the popover header. */}
+      {/* Popover below the notch */}
       {activeItem && (
         <NotchPopover
           item={activeItem}
