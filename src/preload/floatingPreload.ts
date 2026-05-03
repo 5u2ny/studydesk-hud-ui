@@ -89,7 +89,6 @@ const INVOKE_CHANNELS = new Set<string>([
   'system:safeStorageAvailable',
   'window:openNotes',
   'window:openWorkspace',
-  'window:toggleSidebar',
   'window:openSettings',
   'window:getNotchHeight',
 ]);

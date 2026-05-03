@@ -112,7 +112,6 @@ export interface IPCContracts {
   // Window control
   'window:openNotes':    { req: { noteId?: string }; res: void };
   'window:openWorkspace': { req: { noteId?: string }; res: void };
-  'window:toggleSidebar': { req: void; res: { expanded: boolean } };
   'window:openSettings': { req: void; res: void };
 
   // Timer

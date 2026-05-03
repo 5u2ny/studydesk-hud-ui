@@ -25,6 +25,7 @@ import { criticalEmailService } from './services/gmail/criticalEmailService';
 import { todayService } from './services/today/todayService';
 import { attentionAlertService } from './services/attention/attentionAlertService';
 import { randomUUID } from 'node:crypto';
+import { significantWords, calendarDay, hasWordOverlap } from './services/syllabus/dedup';
 
 let timerEngine: TimerEngine;
 
@@ -181,14 +182,105 @@ export function setupIPC() {
   // ── Focus OS Student: Syllabus ────────────────────────────────────────
   ipcMain.handle('syllabus:parse', (_e, r) => syllabusParserService.parse(r));
   ipcMain.handle('syllabus:confirmImport', (_e, r) => {
-    let courseId = r.courseId;
+    // 1. Course — create or reuse
+    let courseId: string = r.courseId;
     if (!courseId && r.course?.name) {
       courseId = coursesService.create(r.course).id;
     }
+
+    // 2. Syllabus note — create if sourceText provided, or update existing note
+    let syllabusNoteId: string | undefined = r.syllabusNoteId;
+    if (!syllabusNoteId && r.sourceText) {
+      const note = notesService.create({ title: r.course?.name ? `${r.course.code ?? ''} ${r.course.name} Syllabus`.trim() : 'Syllabus', content: r.sourceText });
+      notesService.update(note.id, { documentType: 'syllabus', courseId });
+      syllabusNoteId = note.id;
+    } else if (syllabusNoteId) {
+      notesService.update(syllabusNoteId, { documentType: 'syllabus', courseId });
+    }
+
+    // 3. Assignments — create from confirmed assignment items
+    //    assignmentService.create auto-creates a deadline, so skip those in step 4
+    const assignmentDeadlineIds = new Set<string>();
+    const assignments = (r.assignments ?? [])
+      .filter((a: any) => a.confirmed !== false)
+      .map((a: any) => {
+        const created = assignmentService.create({
+          title: a.title,
+          courseId,
+          dueDate: a.dueDate,
+          sourceType: 'syllabus',
+          sourceId: syllabusNoteId,
+          description: a.description,
+        });
+        assignmentDeadlineIds.add(created.id);
+        return created;
+      });
+
+    // 4. Deadlines — create from confirmed deadline items, skip duplicates of assignment-created deadlines
+    //    assignmentService.create auto-creates a deadline when dueDate exists.
+    //    Filter out any standalone deadline that matches a created assignment by date + title overlap.
+    const assignmentFingerprints: Array<{ day: string; words: Set<string> }> = assignments
+      .filter((a: any) => a.dueDate)
+      .map((a: any) => ({
+        day: calendarDay(a.dueDate),
+        words: significantWords(a.title),
+      }));
+
     const deadlines = (r.deadlines ?? [])
       .filter((d: any) => d.confirmed !== false)
-      .map((d: any) => deadlineService.create({ ...d, courseId: d.courseId ?? courseId, sourceType: 'syllabus' }));
-    return { courseId, deadlines };
+      .filter((d: any) => {
+        if (!d.deadlineAt) return true;
+        const dDay = calendarDay(d.deadlineAt);
+        const dWords = significantWords(d.title);
+        // Skip if same calendar day AND significant title word overlap with any assignment
+        return !assignmentFingerprints.some(af =>
+          af.day === dDay && hasWordOverlap(af.words, dWords)
+        );
+      })
+      .map((d: any) => deadlineService.create({
+        ...d,
+        courseId: d.courseId ?? courseId,
+        sourceType: 'syllabus',
+        sourceId: d.sourceId ?? syllabusNoteId,
+      }));
+
+    // 5. Class session placeholders — SKIPPED.
+    //    classSessionService.start() sets startedAt=now which is wrong for future classes.
+    //    ClassSession is designed for live/completed sessions, not scheduled placeholders.
+    //    Schedule rows are already captured as deadlines (type 'meeting') or in the parse result.
+
+    // 6. Setup task alerts — write directly to store
+    const setupAlerts: any[] = [];
+    for (const task of (r.setupTasks ?? [])) {
+      if (task.confirmed === false) continue;
+      const alert = {
+        id: randomUUID(),
+        sourceType: 'setup' as const,
+        sourceId: syllabusNoteId,
+        courseId,
+        title: task.title,
+        reason: `Setup task from syllabus import: ${task.category ?? 'general'}`,
+        actionLabel: 'Complete setup',
+        priority: 'medium' as const,
+        status: 'new' as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      focusStore.addAttentionAlert(alert);
+      setupAlerts.push(alert);
+    }
+
+    return {
+      courseId,
+      syllabusNoteId,
+      counts: {
+        deadlines: deadlines.length,
+        assignments: assignments.length,
+        setupAlerts: setupAlerts.length,
+      },
+      deadlines,
+      assignments,
+    };
   });
 
   // ── Focus OS Student: Class Mode ──────────────────────────────────────
@@ -314,9 +406,6 @@ export function setupIPC() {
   });
   ipcMain.handle('window:openWorkspace', (_e, r: { noteId?: string }) => {
     windowManager.openNotesWindow(r?.noteId);
-  });
-  ipcMain.handle('window:toggleSidebar', () => {
-    return windowManager.toggleSidebar();
   });
   ipcMain.handle('window:openSettings', () => {
     windowManager.sendToFloating('ui:openSettings', undefined);

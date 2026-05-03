@@ -46,7 +46,6 @@ export class WindowManager {
   private savedBounds: Electron.Rectangle | null = null;
   private freezeActive = false;
   private islandSavedBounds: Electron.Rectangle | null = null;
-  private sidebarExpanded = false;
   private lastTrayProgress = -1;
   private lastTrayPhase: TimerPhase | null = null;
 
@@ -122,25 +121,6 @@ export class WindowManager {
     this.floatingWindow = win;
 
     return win;
-  }
-
-  // ── Sidebar toggle ──────────────────────────────────────────────────────
-  toggleSidebar(): { expanded: boolean } {
-    this.sidebarExpanded = !this.sidebarExpanded;
-    if (this.sidebarExpanded) {
-      // Expand window to accommodate sidebar (pill + 340px sidebar)
-      const win = this.floatingWindow;
-      if (win && !win.isDestroyed()) {
-        const [, h] = win.getSize();
-        win.setSize(420 + 340, Math.max(h, 540), true);
-      }
-    } else {
-      const win = this.floatingWindow;
-      if (win && !win.isDestroyed()) {
-        win.setSize(400, 180, true);
-      }
-    }
-    return { expanded: this.sidebarExpanded };
   }
 
   // ── StudyDesk workspace window (persistent desktop doc — hide on close) ──

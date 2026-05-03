@@ -206,7 +206,7 @@ export interface CriticalEmailAlert {
 
 export interface AttentionAlert {
   id: string;
-  sourceType: 'deadline' | 'confusion' | 'study_review' | 'class_action' | 'assignment_checklist';
+  sourceType: 'deadline' | 'confusion' | 'study_review' | 'class_action' | 'assignment_checklist' | 'setup';
   sourceId?: string;
   courseId?: string;
   title: string;

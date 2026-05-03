@@ -1930,3 +1930,117 @@ body {
     display: none;
   }
 }
+
+/* ── Syllabus Import Review ──────────────────────────────────────────── */
+
+.syllabus-view {
+  overflow: hidden auto;
+  padding: 24px 28px;
+}
+
+.syllabus-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 680px;
+}
+
+.syllabus-form h3 {
+  margin: 0;
+  color: #6d7890;
+  font-size: 11px;
+  font-weight: 920;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+}
+
+.syllabus-form label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: #283040;
+  border-bottom: 1px solid rgba(92, 111, 142, 0.08);
+}
+
+.syllabus-form label input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: #4c8bf5;
+}
+
+.syllabus-inline-edit {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid rgba(92, 111, 142, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.6);
+  font: inherit;
+  font-size: 13px;
+  color: #283040;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.syllabus-inline-edit:focus {
+  border-color: #4c8bf5;
+}
+
+.syllabus-inline-select {
+  padding: 3px 8px;
+  border: 1px solid rgba(92, 111, 142, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.6);
+  font: inherit;
+  font-size: 12px;
+  color: #5c6f8e;
+  outline: none;
+}
+
+.syllabus-inline-select:focus {
+  border-color: #4c8bf5;
+}
+
+.syllabus-paste-area {
+  width: 100%;
+  min-height: 200px;
+  padding: 10px 12px;
+  border: 1px solid rgba(92, 111, 142, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #283040;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.syllabus-paste-area:focus {
+  border-color: #4c8bf5;
+}
+
+.syllabus-paste-area::placeholder {
+  color: #7a8497;
+}
+
+.syllabus-onboarding-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.syllabus-onboarding-list li {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(76, 139, 245, 0.06);
+  font-size: 13px;
+  color: #283040;
+}

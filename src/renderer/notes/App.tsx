@@ -45,9 +45,41 @@ interface SyllabusDeadlineReview {
   included: boolean
 }
 
+interface SyllabusAssignmentReview {
+  title: string
+  dueDate?: number
+  weight?: string
+  type: string
+  included: boolean
+}
+
+interface SyllabusSetupReview {
+  title: string
+  category: string
+  included: boolean
+}
+
+interface SyllabusClassMeetingReview {
+  days: string[]
+  startTime: string
+  endTime: string
+  location?: string
+}
+
 interface SyllabusParseReview {
-  course: { name?: string; code?: string; professorName?: string; professorEmail?: string; term?: string }
+  course: { name?: string; code?: string; professorName?: string; professorEmail?: string; term?: string; officeHours?: string; location?: string }
+  classMeetings: SyllabusClassMeetingReview[]
+  assignments: SyllabusAssignmentReview[]
   deadlines: SyllabusDeadlineReview[]
+  setupTasks: SyllabusSetupReview[]
+  readings: Array<{ title: string; chapter?: string }>
+  scheduleRowCount: number
+}
+
+interface SyllabusConfirmResult {
+  courseId?: string
+  syllabusNoteId?: string
+  counts: { deadlines: number; assignments: number; setupAlerts: number }
 }
 
 interface FlashcardDraft {
@@ -70,17 +102,33 @@ interface QuickAddForm {
   due: string
 }
 
+/** Block-level TipTap node types that should be separated by newlines. */
+const BLOCK_TYPES = new Set([
+  'paragraph', 'heading', 'blockquote', 'codeBlock',
+  'bulletList', 'orderedList', 'listItem', 'horizontalRule',
+])
+
 function noteText(content: string): string {
   try {
     const json = JSON.parse(content)
-    const parts: string[] = []
-    const walk = (node: any) => {
+    const lines: string[] = []
+    const walkBlock = (node: any) => {
       if (!node) return
-      if (typeof node.text === 'string') parts.push(node.text)
-      if (Array.isArray(node.content)) node.content.forEach(walk)
+      if (BLOCK_TYPES.has(node.type)) {
+        const texts: string[] = []
+        const collectText = (n: any) => {
+          if (!n) return
+          if (typeof n.text === 'string') texts.push(n.text)
+          if (Array.isArray(n.content)) n.content.forEach(collectText)
+        }
+        collectText(node)
+        lines.push(texts.join(''))
+      } else if (Array.isArray(node.content)) {
+        node.content.forEach(walkBlock)
+      }
     }
-    walk(json)
-    return parts.join(' ').trim()
+    walkBlock(json)
+    return lines.join('\n').trim()
   } catch {
     return content
   }
@@ -414,7 +462,15 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              {courses.length === 0 && <EmptyHint message="No courses yet" hint="Add a course to organize your workspace." />}
+              {courses.length === 0 && (
+                <div className="empty-hint">
+                  <strong>No courses yet</strong>
+                  <span>Import a syllabus to create your first course, assignments, and deadlines.</span>
+                  <button className="outline-button" style={{ marginTop: 6 }} onClick={() => setActiveTool('syllabus')}>
+                    <FileText size={14} /> Import Syllabus
+                  </button>
+                </div>
+              )}
             </WorkspaceSection>
 
             <WorkspaceSection title="Syllabus Imports" onAdd={() => openQuickAdd('syllabus')}>
@@ -606,7 +662,7 @@ function WorkspaceSurface({
     case 'assignment':
       return <AssignmentParserView selected={selected} selectedText={selectedText} courseId={currentCourse?.id} deadlines={deadlines} onSave={onAssignmentSave} />
     case 'syllabus':
-      return <SyllabusImportView selected={selected} selectedText={selectedText} courseId={currentCourse?.id} onCreate={onCreate} onConfirm={onSyllabusConfirm} />
+      return <SyllabusImportView selected={selected} selectedText={selectedText} courseId={currentCourse?.id} onCreate={onCreate} onConfirm={onSyllabusConfirm} onRefresh={onRefresh} onStatus={onStatus} />
     case 'class':
       return <ClassModeView currentCourse={currentCourse} captures={captures} confusions={confusions} classSessions={classSessions} onStartClass={onStartClass} onResolveConfusion={onResolveConfusion} onEndClassSession={onEndClassSession} onRefresh={onRefresh} />
     case 'today':
@@ -1081,112 +1137,336 @@ function FlashcardsView({ selectedText, studyItems, courseId, onReviewStudyItem,
   )
 }
 
-function SyllabusImportView({ selected, selectedText, courseId, onCreate, onConfirm }: {
+function SyllabusImportView({ selected, selectedText, courseId, onCreate, onConfirm, onRefresh, onStatus }: {
   selected: Note | null
   selectedText: string
   courseId?: string
   onCreate: (type?: Note['documentType']) => Promise<void>
   onConfirm: () => void
+  onRefresh: () => void
+  onStatus: (msg: string) => void
 }) {
   const [review, setReview] = useState<SyllabusParseReview | null>(null)
   const [parsing, setParsing] = useState(false)
+  const [confirmResult, setConfirmResult] = useState<SyllabusConfirmResult | null>(null)
+  const [rawPaste, setRawPaste] = useState('')
 
+  /** Text to parse: raw paste takes priority over note content. */
+  const parseText = rawPaste.trim() || selectedText
+
+  // ── Parse ───────────────────────────────────────────────────────────
   async function handleParse() {
-    if (!selectedText) return
+    if (!parseText) return
     setParsing(true)
     try {
-      const result = await ipc.invoke<{ course: SyllabusParseReview['course']; deadlines: Array<{ title: string; deadlineAt: number; type: string; confirmed: boolean }> }>('syllabus:parse', { text: selectedText, courseId })
+      const r = await ipc.invoke<{
+        course: SyllabusParseReview['course']
+        classMeetings: SyllabusClassMeetingReview[]
+        assignments: Array<{ title: string; dueDate?: number; weight?: string; type: string }>
+        deadlines: Array<{ title: string; deadlineAt: number; type: string }>
+        readings: Array<{ title: string; chapter?: string }>
+        setupTasks: Array<{ title: string; category: string }>
+        scheduleRows: unknown[]
+      }>('syllabus:parse', { text: parseText, courseId })
       setReview({
-        course: result.course,
-        deadlines: result.deadlines.map(d => ({ title: d.title, deadlineAt: d.deadlineAt, type: d.type, included: true })),
+        course: r.course,
+        classMeetings: r.classMeetings ?? [],
+        assignments: (r.assignments ?? []).map(a => ({ ...a, included: true })),
+        deadlines: (r.deadlines ?? []).map(d => ({ title: d.title, deadlineAt: d.deadlineAt, type: d.type, included: true })),
+        setupTasks: (r.setupTasks ?? []).map(t => ({ ...t, included: true })),
+        readings: r.readings ?? [],
+        scheduleRowCount: r.scheduleRows?.length ?? 0,
       })
+      setConfirmResult(null)
     } finally { setParsing(false) }
   }
 
+  // ── Confirm ─────────────────────────────────────────────────────────
   async function handleConfirm() {
     if (!review) return
-    const included = review.deadlines.filter(d => d.included).map(d => ({
-      title: d.title,
-      deadlineAt: d.deadlineAt,
-      type: d.type,
-      confirmed: true,
-      sourceType: 'syllabus',
-      sourceId: selected?.id,
-    }))
-    const result = await ipc.invoke<{ courseId?: string }>('syllabus:confirmImport', {
+    const payload = {
       courseId,
       course: !courseId ? review.course : undefined,
-      deadlines: included,
-    })
-    // Update source note with syllabus type and course link
+      syllabusNoteId: selected?.id,
+      sourceText: !selected ? parseText : undefined,
+      assignments: review.assignments.filter(a => a.included).map(a => ({
+        title: a.title, dueDate: a.dueDate, confirmed: true,
+      })),
+      deadlines: review.deadlines.filter(d => d.included).map(d => ({
+        title: d.title, deadlineAt: d.deadlineAt, type: d.type,
+        confirmed: true, sourceType: 'syllabus', sourceId: selected?.id,
+      })),
+      setupTasks: review.setupTasks.filter(t => t.included).map(t => ({
+        title: t.title, category: t.category, confirmed: true,
+      })),
+    }
+    const result = await ipc.invoke<SyllabusConfirmResult>('syllabus:confirmImport', payload)
     if (selected) {
       await ipc.invoke('notes:update', { id: selected.id, patch: { documentType: 'syllabus', courseId: result?.courseId ?? courseId } })
     }
-    setReview(null)
-    onConfirm()
+    setConfirmResult(result)
+    const c = result.counts
+    onStatus(`Import complete: ${c.assignments} assignment(s), ${c.deadlines} deadline(s), ${c.setupAlerts} setup task(s).`)
+    onRefresh()
   }
 
-  function toggleDeadline(index: number) {
+  // ── Inline edit helpers ─────────────────────────────────────────────
+  function updateCourse(field: keyof SyllabusParseReview['course'], value: string) {
     if (!review) return
-    const updated = [...review.deadlines]
-    updated[index] = { ...updated[index], included: !updated[index].included }
-    setReview({ ...review, deadlines: updated })
+    setReview({ ...review, course: { ...review.course, [field]: value } })
   }
 
+  function toggleAssignment(i: number) {
+    if (!review) return
+    const next = [...review.assignments]
+    next[i] = { ...next[i], included: !next[i].included }
+    setReview({ ...review, assignments: next })
+  }
+  function editAssignment(i: number, field: keyof SyllabusAssignmentReview, value: string | number) {
+    if (!review) return
+    const next = [...review.assignments]
+    next[i] = { ...next[i], [field]: value }
+    setReview({ ...review, assignments: next })
+  }
+
+  function toggleDeadline(i: number) {
+    if (!review) return
+    const next = [...review.deadlines]
+    next[i] = { ...next[i], included: !next[i].included }
+    setReview({ ...review, deadlines: next })
+  }
+  function editDeadline(i: number, field: keyof SyllabusDeadlineReview, value: string | number) {
+    if (!review) return
+    const next = [...review.deadlines]
+    next[i] = { ...next[i], [field]: value }
+    setReview({ ...review, deadlines: next })
+  }
+
+  function toggleSetup(i: number) {
+    if (!review) return
+    const next = [...review.setupTasks]
+    next[i] = { ...next[i], included: !next[i].included }
+    setReview({ ...review, setupTasks: next })
+  }
+  function editSetup(i: number, field: keyof SyllabusSetupReview, value: string) {
+    if (!review) return
+    const next = [...review.setupTasks]
+    next[i] = { ...next[i], [field]: value }
+    setReview({ ...review, setupTasks: next })
+  }
+
+  function resetImport() { setReview(null); setConfirmResult(null) }
+
+  // ── Post-import onboarding ──────────────────────────────────────────
+  if (confirmResult) {
+    const c = confirmResult.counts
+    return (
+      <section className="phase3-card syllabus-view">
+        <header className="phase3-header">
+          <div>
+            <p className="phase3-eyebrow">Import complete</p>
+            <h1>Syllabus imported successfully</h1>
+          </div>
+          <div className="phase3-actions">
+            <button className="outline-button" onClick={resetImport}><Upload size={15} /> Import another</button>
+          </div>
+        </header>
+        <div className="syllabus-grid">
+          <section className="phase3-panel">
+            <h2>Created records</h2>
+            <div className="source-preview">
+              <span>{c.assignments} assignment(s)</span>
+              <span>{c.deadlines} deadline(s)</span>
+              <span>{c.setupAlerts} setup task(s)</span>
+            </div>
+          </section>
+          <section className="phase3-panel wide">
+            <h2>Next steps: upload course materials</h2>
+            <p className="empty-hint" style={{ marginBottom: 8 }}>
+              The syllabus tells you what to study, but the materials contain the actual content.
+              Upload each type to unlock flashcards, quizzes, and study tools.
+            </p>
+            <div className="syllabus-onboarding-list">
+              <div className="timeline-row"><BookOpen size={14} /><div><strong>Readings and textbook chapters</strong><em>Upload PDFs or paste text for each assigned reading.</em></div></div>
+              <div className="timeline-row"><FileText size={14} /><div><strong>Cases (HBP coursepack)</strong><em>Upload case PDFs to enable case analysis prep.</em></div></div>
+              <div className="timeline-row"><ClipboardList size={14} /><div><strong>Assignment prompts</strong><em>Upload assignment briefs to extract deliverables and checklists.</em></div></div>
+              <div className="timeline-row"><PanelTop size={14} /><div><strong>Lecture slides</strong><em>Upload slides to capture key concepts and exam hints.</em></div></div>
+              <div className="timeline-row"><Target size={14} /><div><strong>Generate flashcards</strong><em>Available after uploading readings or slides.</em></div></div>
+              <div className="timeline-row"><HelpCircle size={14} /><div><strong>Generate quizzes</strong><em>Available after uploading readings or slides.</em></div></div>
+            </div>
+          </section>
+        </div>
+      </section>
+    )
+  }
+
+  // ── Main render ─────────────────────────────────────────────────────
   return (
     <section className="phase3-card syllabus-view">
       <header className="phase3-header">
         <div>
           <p className="phase3-eyebrow">Syllabus import</p>
-          <h1>Extract deadlines and course rules</h1>
-          <span>Parse syllabus text, review extracted deadlines, then confirm import.</span>
+          <h1>Extract course structure and deadlines</h1>
+          <span>Parse syllabus text, review and edit, then confirm import.</span>
         </div>
         <div className="phase3-actions">
           <button className="outline-button" onClick={() => onCreate('syllabus')}><Upload size={15} /> New syllabus note</button>
           {!review
-            ? <button className="review-button" onClick={handleParse} disabled={!selectedText || parsing}><Sparkles size={15} /> {parsing ? 'Parsing...' : 'Parse syllabus'}</button>
+            ? <button className="review-button" onClick={handleParse} disabled={!parseText || parsing}><Sparkles size={15} /> {parsing ? 'Parsing...' : 'Parse syllabus'}</button>
             : <button className="review-button" onClick={handleConfirm}><Sparkles size={15} /> Confirm import</button>
           }
         </div>
       </header>
-      {!selectedText && !review && (
-        <EmptyHint message="No document selected" hint="Select or create a syllabus note, then parse it." />
-      )}
-      {selectedText && !review && (
+
+      {!review && (
         <div className="syllabus-grid">
           <section className="phase3-panel">
-            <h2>Selected source</h2>
-            <div className="source-preview">
-              <FileText size={22} />
-              <strong>{selected?.title ?? 'Untitled'}</strong>
-              <span>{selected?.documentType?.replace('_', ' ') ?? 'document'}</span>
-            </div>
+            <h2>Paste syllabus text</h2>
+            <textarea
+              className="syllabus-paste-area"
+              placeholder="Paste your syllabus text here (plain text works best)..."
+              value={rawPaste}
+              onChange={e => setRawPaste(e.target.value)}
+              rows={12}
+            />
+            {rawPaste.trim() && (
+              <p className="empty-hint" style={{ marginTop: 6 }}>{rawPaste.trim().split('\n').length} lines pasted. Click "Parse syllabus" to extract.</p>
+            )}
           </section>
           <section className="phase3-panel wide">
-            <p className="empty-hint">Click "Parse syllabus" to extract deadlines for review.</p>
+            {selected && selectedText && !rawPaste.trim() ? (
+              <>
+                <h2>Or use selected note</h2>
+                <div className="source-preview">
+                  <FileText size={22} />
+                  <strong>{selected.title ?? 'Untitled'}</strong>
+                  <span>{selected.documentType?.replace('_', ' ') ?? 'document'}</span>
+                </div>
+                <p className="empty-hint" style={{ marginTop: 8 }}>Note content will be used if the paste area is empty.</p>
+              </>
+            ) : !rawPaste.trim() ? (
+              <>
+                <h2>Or select a syllabus note</h2>
+                <p className="empty-hint">Create a syllabus note from the sidebar, paste text into it, then return here.</p>
+              </>
+            ) : (
+              <p className="empty-hint">Pasted text will be used. Click "Parse syllabus" to extract course structure.</p>
+            )}
           </section>
         </div>
       )}
+
       {review && (
         <div className="syllabus-grid">
+          {/* ── Course info (editable) ─────────────────────────────── */}
           <section className="phase3-panel">
             <h2>Course info</h2>
-            <div className="source-preview">
-              <strong>{review.course.code ?? ''} {review.course.name ?? 'Unknown course'}</strong>
-              {review.course.professorName && <span>Prof. {review.course.professorName}</span>}
-              {review.course.professorEmail && <span>{review.course.professorEmail}</span>}
-              {review.course.term && <span>Term: {review.course.term}</span>}
+            <div className="syllabus-form">
+              <label>Code <input value={review.course.code ?? ''} onChange={e => updateCourse('code', e.target.value)} /></label>
+              <label>Name <input value={review.course.name ?? ''} onChange={e => updateCourse('name', e.target.value)} /></label>
+              <label>Instructor <input value={review.course.professorName ?? ''} onChange={e => updateCourse('professorName', e.target.value)} /></label>
+              <label>Email <input value={review.course.professorEmail ?? ''} onChange={e => updateCourse('professorEmail', e.target.value)} /></label>
+              <label>Term <input value={review.course.term ?? ''} onChange={e => updateCourse('term', e.target.value)} /></label>
             </div>
+            {review.classMeetings.length > 0 && (
+              <>
+                <h2 style={{ marginTop: 12 }}>Class meetings</h2>
+                {review.classMeetings.map((m, i) => (
+                  <div className="timeline-row" key={i}>
+                    <Clock3 size={14} />
+                    <div>
+                      <strong>{m.days.join('/')}</strong>
+                      <em>{m.startTime} - {m.endTime}</em>
+                      {m.location && <em>{m.location}</em>}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+            {review.readings.length > 0 && (
+              <>
+                <h2 style={{ marginTop: 12 }}>Readings ({review.readings.length})</h2>
+                {review.readings.slice(0, 10).map((r, i) => (
+                  <div className="timeline-row" key={i}>
+                    <BookOpen size={14} />
+                    <div><strong>{r.title}</strong>{r.chapter && <em>{r.chapter}</em>}</div>
+                  </div>
+                ))}
+                {review.readings.length > 10 && <p className="empty-hint">+{review.readings.length - 10} more</p>}
+              </>
+            )}
+            {review.scheduleRowCount > 0 && (
+              <p className="empty-hint" style={{ marginTop: 8 }}>{review.scheduleRowCount} schedule row(s) extracted.</p>
+            )}
           </section>
+
+          {/* ── Right column: assignments, deadlines, setup ────────── */}
           <section className="phase3-panel wide">
-            <h2>Deadlines ({review.deadlines.filter(d => d.included).length}/{review.deadlines.length} included)</h2>
-            {review.deadlines.length === 0 && <EmptyHint message="No deadlines found" hint="The parser did not detect any dates in this document." />}
-            {review.deadlines.map((d, i) => (
-              <div className="timeline-row" key={i}>
-                <input type="checkbox" checked={d.included} onChange={() => toggleDeadline(i)} />
-                <div><strong>{d.title}</strong><em>{formatDue(d.deadlineAt)} - {d.type}</em></div>
+            {/* Assignments */}
+            <h2>Assignments ({review.assignments.filter(a => a.included).length}/{review.assignments.length})</h2>
+            {review.assignments.length === 0 && <EmptyHint message="No assignments found" hint="No graded components detected." />}
+            {review.assignments.map((a, i) => (
+              <div className="timeline-row" key={`a-${i}`}>
+                <input type="checkbox" checked={a.included} onChange={() => toggleAssignment(i)} />
+                <div style={{ flex: 1 }}>
+                  <input className="syllabus-inline-edit" value={a.title} onChange={e => editAssignment(i, 'title', e.target.value)} />
+                  <em>
+                    {a.weight && <span>{a.weight}</span>}
+                    {a.dueDate && <span> - {formatDue(a.dueDate)}</span>}
+                    {' '}{a.type}
+                  </em>
+                </div>
               </div>
             ))}
+
+            {/* Deadlines */}
+            <h2 style={{ marginTop: 16 }}>Deadlines ({review.deadlines.filter(d => d.included).length}/{review.deadlines.length})</h2>
+            {review.deadlines.length === 0 && <EmptyHint message="No deadlines found" hint="No dates detected in this document." />}
+            {review.deadlines.map((d, i) => (
+              <div className="timeline-row" key={`d-${i}`}>
+                <input type="checkbox" checked={d.included} onChange={() => toggleDeadline(i)} />
+                <div style={{ flex: 1 }}>
+                  <input className="syllabus-inline-edit" value={d.title} onChange={e => editDeadline(i, 'title', e.target.value)} />
+                  <em>
+                    {formatDue(d.deadlineAt)}
+                    {' - '}
+                    <select className="syllabus-inline-select" value={d.type} onChange={e => editDeadline(i, 'type', e.target.value)}>
+                      <option value="assignment">assignment</option>
+                      <option value="exam">exam</option>
+                      <option value="quiz">quiz</option>
+                      <option value="reading">reading</option>
+                      <option value="project">project</option>
+                      <option value="presentation">presentation</option>
+                      <option value="other">other</option>
+                    </select>
+                  </em>
+                </div>
+              </div>
+            ))}
+
+            {/* Setup tasks */}
+            {review.setupTasks.length > 0 && (
+              <>
+                <h2 style={{ marginTop: 16 }}>Setup tasks ({review.setupTasks.filter(t => t.included).length}/{review.setupTasks.length})</h2>
+                {review.setupTasks.map((t, i) => (
+                  <div className="timeline-row" key={`s-${i}`}>
+                    <input type="checkbox" checked={t.included} onChange={() => toggleSetup(i)} />
+                    <div style={{ flex: 1 }}>
+                      <input className="syllabus-inline-edit" value={t.title} onChange={e => editSetup(i, 'title', e.target.value)} />
+                      <em>
+                        <select className="syllabus-inline-select" value={t.category} onChange={e => editSetup(i, 'category', e.target.value)}>
+                          <option value="textbook">textbook</option>
+                          <option value="software">software</option>
+                          <option value="account">account</option>
+                          <option value="material">material</option>
+                          <option value="other">other</option>
+                        </select>
+                      </em>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </section>
         </div>
       )}
