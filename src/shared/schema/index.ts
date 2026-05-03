@@ -22,8 +22,11 @@ export interface Note {
   content: string;          // TipTap JSON serialized
   category?: string;
   courseId?: string;
-  documentType?: 'note' | 'syllabus' | 'assignment_prompt' | 'reading' | 'class_notes';
+  documentType?: 'note' | 'syllabus' | 'assignment_prompt' | 'reading' | 'class_notes' | 'daily_entry';
   linkedAssignmentId?: string;
+  // Date key for daily entries (e.g. "2026-05-03"). Set only when documentType === 'daily_entry'.
+  // Combined with courseId, this gives at most one daily entry per (course, day).
+  dayKey?: string;
   tags?: string[];
   capturedFromIds: string[];
   createdAt: number;

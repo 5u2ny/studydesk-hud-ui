@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import type { AcademicDeadline, Assignment, AttentionAlert, Capture, ChecklistItem, ClassSession, ConfusionItem, Course, Note, StudyItem } from '@schema'
 import { Editor } from './Editor'
 import { FileDropZone } from './components/FileDropZone'
+import { DailyJournalView } from './components/DailyJournalView'
 import {
   ShellContainer,
   IconRail,
@@ -105,7 +106,7 @@ interface QuizQuestionDraft {
   question: string
 }
 
-type WorkspaceTool = 'today' | 'dashboard' | 'quiz' | 'flashcards' | 'assignment' | 'syllabus' | 'class'
+type WorkspaceTool = 'today' | 'dashboard' | 'daily' | 'quiz' | 'flashcards' | 'assignment' | 'syllabus' | 'class'
 type QuickAddKind = 'course' | 'deadline' | 'note' | 'assignment' | 'syllabus' | 'study' | 'question'
 
 interface QuickAddForm {
@@ -178,7 +179,7 @@ function defaultQuickAddForm(kind: QuickAddKind, selectedText = ''): QuickAddFor
 
 function initialWorkspaceTool(): WorkspaceTool {
   const tool = new URLSearchParams(window.location.search).get('tool')
-  return tool === 'dashboard' || tool === 'quiz' || tool === 'flashcards' || tool === 'assignment' || tool === 'syllabus' || tool === 'class'
+  return tool === 'dashboard' || tool === 'daily' || tool === 'quiz' || tool === 'flashcards' || tool === 'assignment' || tool === 'syllabus' || tool === 'class'
     ? tool
     : 'today'
 }
@@ -479,6 +480,7 @@ export default function App() {
 
   const tools: Array<{ id: WorkspaceTool; label: string; icon: React.ReactNode }> = [
     { id: 'today', label: 'Today', icon: <PanelTop size={14} /> },
+    { id: 'daily', label: 'Daily', icon: <CalendarDays size={14} /> },
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
     { id: 'quiz', label: 'Quiz', icon: <HelpCircle size={14} /> },
     { id: 'flashcards', label: 'Flashcards', icon: <ClipboardList size={14} /> },
@@ -774,6 +776,7 @@ export default function App() {
           selected={selected}
           selectedText={selectedText}
           captures={visibleCaptures}
+          notes={notes}
           courses={courses}
           deadlines={orderedVisibleDeadlines}
           studyItems={visibleStudyItems}
@@ -798,6 +801,7 @@ export default function App() {
           onEndClassSession={endClassSession}
           onRefresh={refresh}
           onStatus={setStatus}
+          onSelect={setSelected}
         />
       </MainPanel>
 
@@ -850,6 +854,7 @@ function WorkspaceSurface({
   selected,
   selectedText,
   captures,
+  notes,
   courses,
   deadlines,
   studyItems,
@@ -874,11 +879,13 @@ function WorkspaceSurface({
   onEndClassSession,
   onRefresh,
   onStatus,
+  onSelect,
 }: {
   activeTool: WorkspaceTool
   selected: Note | null
   selectedText: string
   captures: Capture[]
+  notes: Note[]
   courses: Course[]
   deadlines: AcademicDeadline[]
   studyItems: StudyItem[]
@@ -903,10 +910,13 @@ function WorkspaceSurface({
   onEndClassSession: (id: string) => Promise<void>
   onRefresh: () => void
   onStatus: (msg: string) => void
+  onSelect: (note: Note) => void
 }) {
   switch (activeTool) {
     case 'dashboard':
       return <DashboardView courses={courses} deadlines={deadlines} studyItems={studyItems} alerts={alerts} onCompleteDeadline={onCompleteDeadline} onResolveAlert={onResolveAlert} />
+    case 'daily':
+      return <DailyJournalView notes={notes} currentCourse={currentCourse} onUpdate={onUpdate} onRefresh={onRefresh} onSelect={onSelect} />
     case 'quiz':
       return <QuizView selected={selected} selectedText={selectedText} courseId={currentCourse?.id} studyItems={studyItems} onSave={onQuizSave} />
     case 'flashcards':
