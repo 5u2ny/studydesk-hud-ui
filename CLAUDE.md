@@ -133,17 +133,29 @@ Email reply drafting is intentionally removed from the Student Edition product. 
 
 The floating window renders as a hardware-notch-style overlay anchored to the top center of the screen. Architecture lives in `src/renderer/floating/notch/`:
 
-- **notchSizing.ts** — window dimensions per state (`idle`, `hoverDock`, `activePopover`, `workspaceOpening`). The cap is a fixed 220px-wide black pill that never changes shape. `activePopover` widens the BrowserWindow to 540px to accommodate the widget below.
-- **NotchShell.tsx** — the root layout: fixed cap on top, popover floats below with a 12px transparent gap. Clicking the cap opens "Today" as the default feature.
-- **NotchPopover.tsx** — the Liquid Glass widget panel. Dock navigation icons (feature-switching buttons) live inside the popover header, not in the cap.
-- **NotchIdle.tsx** — content inside the cap: timer ring + info chips.
+- **notchSizing.ts** — window dimensions per state (`idle`, `hoverDock`, `activePopover`, `workspaceOpening`). BrowserWindow is always 420px wide for hover detection; the CSS shell animates width.
+- **NotchShell.tsx** — three-part layout: left wing (timer) + center cap (blank black, 180px) + right wing (4 feature icons). Wings start at `width:0` and expand on hover/active.
+- **NotchPopover.tsx** — the Liquid Glass widget panel. Opens below the bar with a 12px transparent gap when a feature icon is clicked.
+- **NotchIdle.tsx** — content inside the left wing: timer ring + info chips.
 - **notchModel.ts** — data derivation (idle chips, live status text, badges, feature order).
 - **SFIcons.tsx** — hand-crafted SF-Symbols-style SVG icons for the 14px menu-bar size.
 
+**Layout model:**
+- Physical notch cap: 180px wide, always blank black, never changes.
+- Each wing: 120px. Left = timer, Right = 4 feature icons.
+- Idle: shell CSS width = 180px (only cap visible). On hover: shell expands to 420px (120+180+120) via `transition: width 0.28s`.
+- `overflow: hidden` on the shell clips wings at boundaries during the width transition.
+- Shape is always `border-radius: 0 0 6px 6px` (matches physical MacBook notch). Never use large rounded corners or pill shapes.
+
+**Hover detection:**
+- CSS `:hover` on `.studydesk-notch-shell` is the primary trigger (works at screen top edge where JS `onMouseEnter` fails due to Universal Control interception at y=0-5px).
+- React `hoverDock` state + `.is-hover-dock` class is the JS fallback.
+- `setHoverDock(false)` must be called in `closePopover` because `onMouseLeave` never fires when BrowserWindow resizes away from cursor.
+
 **Design rules:**
-- The cap must stay fixed width in all states (idle, hover, expanded). Never widen it.
-- No dock icons, side pods, or controls in the macOS menu-bar strip. All feature navigation goes in the popover.
-- CSS in `floating.css` under `.studydesk-notch-*` selectors. Shell width is `--shell-width: 220px`, never overridden.
+- The cap must stay fixed width (180px) in all states. Never widen it.
+- The expanded shape must be identical to the idle shape -- no Dynamic Island pill.
+- CSS in `floating.css` under `.studydesk-notch-*` selectors. Key CSS vars: `--physical-notch-width: 180px`, `--notch-wing-width: 120px`.
 
 **Native addon** (`src/main/native/notch_helper.mm`):
 - Uses private CGS APIs (`CGSSpaceCreate`, `CGSSpaceSetAbsoluteLevel`, `CGSAddWindowsToSpaces`) to place the window at INT_MAX level -- above everything including the menu bar.
@@ -155,11 +167,47 @@ The floating window renders as a hardware-notch-style overlay anchored to the to
 
 `src/renderer/shared/ui/` contains `tabs.tsx` (wraps `@radix-ui/react-tabs`), `button.tsx` (cva variants: `default | phase | ghost | icon`), `input.tsx`. Tailwind config lives in `tailwind.config.js`; tokens in `src/renderer/floating/styles/globals.css`. The `phase-*` utility classes (`phase-text`, `phase-bg-soft`, `phase-border`, `phase-glow`) read from CSS variables `--phase-r/g/b` set dynamically in `App.tsx` based on the current timer phase.
 
+## StudyDesk Workspace (notes window)
+
+`src/renderer/notes/App.tsx` is the full workspace UI. It is a single-file component (~1350 lines) that owns:
+
+**Data model:** All academic entities are loaded in `refresh()` via parallel IPC calls and stored in local state. Derived state (filtered lists, active assignment, checklist progress) is computed inline -- no external state manager.
+
+**Selection-driven filtering:**
+- `selectedCourseId` gates all visible collections through a `byCourse()` helper.
+- `selectedAssignmentId` resolves to `activeAssignment` via a fallback chain: explicit selection -> linked assignment from selected note -> first visible non-archived assignment -> null.
+- `selected` (Note) is preserved across refresh by ID lookup.
+
+**Tool surfaces** (center panel, switched by `activeTool` state):
+- `DocumentWorkspace` -- TipTap editor + "Create question" action
+- `DashboardView` -- metrics, deadline timeline, alerts
+- `AssignmentParserView` -- parse -> review -> save (creates/updates assignment + deadline + links note)
+- `SyllabusImportView` -- parse -> review/toggle deadlines -> confirm (creates course + deadlines + links note)
+- `FlashcardsView` -- generate from text patterns -> edit -> save (deduplicates against existing)
+- `QuizView` -- generate -> edit -> save as note (optional: also save as study items)
+- `ClassModeView` -- start/end session, add questions + action items (questions also create ConfusionItems)
+
+**Persistence patterns:**
+- Review-before-save: parser output is held in local state, user edits, then explicit save button commits.
+- Cross-linking: assignment save links the source note via `linkedAssignmentId`; syllabus confirm sets `documentType: 'syllabus'` + `courseId` on the source note.
+- Deduplication: the JSON store has no unique constraints, so the renderer checks before writing (deadline by `assignmentId`/`sourceId`, study items by `front`+`back`).
+- All save flows call `refresh()` which re-fetches everything including `attentionAlerts:list`.
+
+**Adding a new workspace tool:**
+1. Add tool ID to the `WorkspaceTool` union type.
+2. Add entry to the `tools` array (icon + label).
+3. Add a case to `WorkspaceSurface` switch.
+4. Implement the view component with the same patterns (local state for drafts, explicit save, call `onRefresh`/`onStatus` after mutations).
+
+**Preload allowlist for notes:** `src/preload/notesPreload.ts` has an explicit `INVOKE_CHANNELS` set. If a new IPC channel is needed, add only that exact channel name -- never use wildcards.
+
 ## Known footguns
 
 - **TipTap content cannot be `{}`.** `JSON.parse('')` throws, and `JSON.parse('{}')` returns `{}`, which is not a valid ProseMirror doc. Always pass either an empty string or `{type:'doc',content:[...]}`. See `parseContent()` in `notes/Editor.tsx`.
 - **useCallback TDZ in App.tsx:** the keyboard `useEffect` references `closeSettings` (a `useCallback`) — it must appear *after* that callback in source order, otherwise the dependency array reads an undefined slot during render and throws "Cannot access 'B' before initialization."
-- **Spawned binaries don't inherit Electron's AX permission.** macOS attaches AX grants per bundle ID. A Swift helper compiled into `~/Library/Application Support/focus-os/ax-selection-reader` would need its OWN whitelist entry. Don't go down this path again — use the `uiohook-napi` mouse-up trick.
+- **Spawned binaries don't inherit Electron's AX permission.** macOS attaches AX grants per bundle ID. A Swift helper compiled into `~/Library/Application Support/focus-os/ax-selection-reader` would need its OWN whitelist entry. Don't go down this path again -- use the `uiohook-napi` mouse-up trick.
+- **Universal Control steals mouse events at y=0-5px.** JS `onMouseEnter`/`onMouseLeave` do not fire reliably when the cursor enters from the very top edge of the screen. Use CSS `:hover` as the primary hover trigger for the notch shell, not JS event handlers alone.
+- **Local JSON store has no unique constraints.** Every `create` call appends a new object with a fresh UUID regardless of content. Deduplication must happen at the application layer (renderer) before writing. Repeated saves without client-side checks silently multiply entities.
 
 ## Capture flow at a glance
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import type { AcademicDeadline, AttentionAlert, Capture, ClassSession, ConfusionItem, Course, Note, StudyItem } from '@schema'
+import type { AcademicDeadline, Assignment, AttentionAlert, Capture, ChecklistItem, ClassSession, ConfusionItem, Course, Note, StudyItem } from '@schema'
 import { Editor } from './Editor'
 import { ipc } from '@shared/ipc-client'
 import {
@@ -7,7 +7,6 @@ import {
   Bell,
   BookOpen,
   CalendarDays,
-  CheckCircle2,
   ChevronRight,
   Clock3,
   Circle,
@@ -23,13 +22,43 @@ import {
   Play,
   Search,
   Settings,
-  Share2,
   Sparkles,
   Target,
   Upload,
   X,
-  Zap,
 } from 'lucide-react'
+
+// ── Local review types (not persisted) ────────────────────────────────────────
+interface AssignmentParseReview {
+  title: string
+  dueDate?: number
+  deliverables: ChecklistItem[]
+  formatRequirements: ChecklistItem[]
+  rubricItems: ChecklistItem[]
+  submissionChecklist: ChecklistItem[]
+}
+
+interface SyllabusDeadlineReview {
+  title: string
+  deadlineAt: number
+  type: string
+  included: boolean
+}
+
+interface SyllabusParseReview {
+  course: { name?: string; code?: string; professorName?: string; professorEmail?: string; term?: string }
+  deadlines: SyllabusDeadlineReview[]
+}
+
+interface FlashcardDraft {
+  front: string
+  back: string
+  type: 'flashcard' | 'concept' | 'definition'
+}
+
+interface QuizQuestionDraft {
+  question: string
+}
 
 type WorkspaceTool = 'today' | 'dashboard' | 'quiz' | 'flashcards' | 'assignment' | 'syllabus' | 'class'
 type QuickAddKind = 'course' | 'deadline' | 'note' | 'assignment' | 'syllabus' | 'study' | 'question'
@@ -70,6 +99,11 @@ function tipTapDocument(text: string): string {
   })
 }
 
+function extractQuestionsFromNote(note: Note): QuizQuestionDraft[] {
+  const text = noteText(note.content)
+  return text.split(/\n+/).map(l => l.trim()).filter(l => /^\d+\.\s/.test(l)).map(l => ({ question: l.replace(/^\d+\.\s*/, '') }))
+}
+
 function defaultQuickAddForm(kind: QuickAddKind, selectedText = ''): QuickAddForm {
   const tomorrow = new Date(Date.now() + 24 * 60 * 60_000)
   tomorrow.setMinutes(0, 0, 0)
@@ -101,21 +135,25 @@ export default function App() {
   const [selected, setSelected] = useState<Note | null>(null)
   const [captures, setCaptures] = useState<Capture[]>([])
   const [courses, setCourses] = useState<Course[]>([])
+  const [assignments, setAssignments] = useState<Assignment[]>([])
   const [deadlines, setDeadlines] = useState<AcademicDeadline[]>([])
   const [studyItems, setStudyItems] = useState<StudyItem[]>([])
   const [confusions, setConfusions] = useState<ConfusionItem[]>([])
   const [alerts, setAlerts] = useState<AttentionAlert[]>([])
   const [classSessions, setClassSessions] = useState<ClassSession[]>([])
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null)
   const [activeTool, setActiveTool] = useState<WorkspaceTool>(initialWorkspaceTool)
   const [status, setStatus] = useState('')
   const [quickAdd, setQuickAdd] = useState<QuickAddKind | null>(initialQuickAddKind)
   const [quickAddForm, setQuickAddForm] = useState<QuickAddForm>(initialQuickAddKind ? defaultQuickAddForm(initialQuickAddKind) : { title: '', detail: '', code: '', due: '' })
 
   async function refresh() {
-    const [noteData, captureData, courseData, deadlineData, studyData, confusionData, alertData, classData] = await Promise.all([
+    const [noteData, captureData, courseData, assignmentData, deadlineData, studyData, confusionData, alertData, classData] = await Promise.all([
       ipc.invoke<Note[]>('notes:list'),
       ipc.invoke<Capture[]>('capture:list', { limit: 80 }),
       ipc.invoke<Course[]>('course:list', {}),
+      ipc.invoke<Assignment[]>('assignment:list', {}),
       ipc.invoke<AcademicDeadline[]>('deadline:list', {}),
       ipc.invoke<StudyItem[]>('study:list', {}),
       ipc.invoke<ConfusionItem[]>('confusion:list', {}),
@@ -125,11 +163,13 @@ export default function App() {
     setNotes(noteData)
     setCaptures(captureData)
     setCourses(courseData)
+    setAssignments(assignmentData)
     setDeadlines(deadlineData)
     setStudyItems(studyData)
     setConfusions(confusionData)
     setAlerts(alertData)
     setClassSessions(classData)
+    setSelectedAssignmentId(prev => prev && assignmentData.some(a => a.id === prev) ? prev : null)
     setSelected(prev => prev ? noteData.find(n => n.id === prev.id) ?? noteData[0] ?? null : noteData[0] ?? null)
   }
 
@@ -144,13 +184,57 @@ export default function App() {
     return () => { ipc.off('notes:openNote'); ipc.off('capture:new') }
   }, [])
 
+  // ── Derived filtered state ──────────────────────────────────────────────────
   const selectedText = useMemo(() => selected ? noteText(selected.content) : '', [selected])
-  const selectedCourse = courses.find(c => c.id === selected?.courseId)
+
+  const selectedCourse = selectedCourseId ? courses.find(c => c.id === selectedCourseId) : undefined
   const currentCourse = selectedCourse ?? courses[0]
-  const assignmentNotes = notes.filter(note => note.documentType === 'assignment_prompt')
-  const syllabusNotes = notes.filter(note => note.documentType === 'syllabus')
-  const classNotes = notes.filter(note => note.documentType === 'class_notes' || note.documentType === 'note')
-  const orderedDeadlines = [...deadlines].sort((a, b) => a.deadlineAt - b.deadlineAt)
+
+  // Filter by selectedCourseId when set
+  const byCourse = <T extends { courseId?: string }>(items: T[]) =>
+    selectedCourseId ? items.filter(i => i.courseId === selectedCourseId) : items
+
+  const visibleNotes = byCourse(notes)
+  const visibleCaptures = byCourse(captures)
+  const visibleAssignments = byCourse(assignments)
+  const visibleDeadlines = byCourse(deadlines)
+  const visibleStudyItems = byCourse(studyItems)
+  const visibleConfusions = byCourse(confusions)
+  const visibleClassSessions = byCourse(classSessions)
+  const visibleAlerts = byCourse(alerts)
+
+  const syllabusNotes = visibleNotes.filter(note => note.documentType === 'syllabus')
+  const assignmentNotes = visibleNotes.filter(note => note.documentType === 'assignment_prompt')
+  const classNotes = visibleNotes.filter(note => note.documentType === 'class_notes' || note.documentType === 'note')
+
+  const orderedVisibleDeadlines = [...visibleDeadlines]
+    .filter(d => !d.completed)
+    .sort((a, b) => a.deadlineAt - b.deadlineAt)
+
+  const selectedLinkedAssignment = selected?.linkedAssignmentId
+    ? assignments.find(a => a.id === selected.linkedAssignmentId)
+    : undefined
+
+  const activeAssignment = selectedAssignmentId
+    ? assignments.find(a => a.id === selectedAssignmentId)
+    : (selectedLinkedAssignment ?? visibleAssignments.find(a => a.status !== 'archived' && a.status !== 'submitted'))
+
+  const activeAssignmentChecklistItems: ChecklistItem[] = activeAssignment
+    ? [
+        ...activeAssignment.deliverables,
+        ...activeAssignment.formatRequirements,
+        ...activeAssignment.rubricItems,
+        ...activeAssignment.submissionChecklist,
+      ]
+    : []
+  const checklistTotal = activeAssignmentChecklistItems.length
+  const checklistDone = activeAssignmentChecklistItems.filter(i => i.completed).length
+  const checklistPercent = checklistTotal > 0 ? Math.round((checklistDone / checklistTotal) * 100) : 0
+
+  const now = Date.now()
+  const dueStudyItems = visibleStudyItems.filter(i => !i.nextReviewAt || i.nextReviewAt <= now)
+  const unresolvedConfusions = visibleConfusions.filter(c => c.status !== 'resolved')
+  const activeAlerts = visibleAlerts.filter(a => a.status !== 'resolved' && a.status !== 'dismissed')
 
   async function handleCreate(type: Note['documentType'] = 'note') {
     const note = await ipc.invoke<Note>('notes:create', { title: type === 'note' ? 'Untitled note' : `New ${type.replace('_', ' ')}`, content: '' })
@@ -221,62 +305,8 @@ export default function App() {
     setSelected(remaining[0] ?? null)
   }
 
-  async function createFlashcard() {
-    if (!selectedText) return
-    await ipc.invoke('study:create', {
-      front: firstUsefulLine(selectedText),
-      back: 'Add the answer in Study.',
-      type: 'flashcard',
-      courseId: selected?.courseId,
-    })
-    setStatus('Flashcard created from the current document.')
-    await refresh()
-  }
-
-  async function createQuizNote() {
-    if (!selectedText) return
-    const lines = selectedText.split(/[.\n]/).map(s => s.trim()).filter(s => s.length > 24).slice(0, 6)
-    const content = {
-      type: 'doc',
-      content: [
-        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Quiz draft' }] },
-        ...lines.map((line, index) => ({
-          type: 'paragraph',
-          content: [{ type: 'text', text: `${index + 1}. What should you remember about: ${line}?` }],
-        })),
-      ],
-    }
-    const note = await ipc.invoke<Note>('notes:create', { title: `Quiz: ${selected?.title ?? 'Study'}`, content: JSON.stringify(content) })
-    const updated = await ipc.invoke<Note>('notes:update', { id: note.id, patch: { documentType: 'reading', courseId: selected?.courseId, tags: ['quiz'] } })
-    setSelected(updated)
-    setStatus('Editable quiz draft created.')
-    await refresh()
-  }
-
-  async function parseAssignment() {
-    if (!selectedText) return
-    const parsed: any = await ipc.invoke('assignment:parse', { text: selectedText, courseId: selected?.courseId, title: selected?.title })
-    await ipc.invoke('assignment:create', {
-      title: parsed.title,
-      courseId: selected?.courseId,
-      dueDate: parsed.dueDate,
-      sourceType: 'assignment_prompt',
-      sourceId: selected?.id,
-      deliverables: parsed.deliverables,
-      formatRequirements: parsed.formatRequirements,
-      rubricItems: parsed.rubricItems,
-      submissionChecklist: parsed.submissionChecklist,
-    })
-    setStatus('Assignment checklist saved from this document.')
-    await refresh()
-  }
-
-  async function parseSyllabus() {
-    if (!selectedText) return
-    const parsed: any = await ipc.invoke('syllabus:parse', { text: selectedText, courseId: selected?.courseId })
-    await ipc.invoke('syllabus:confirmImport', { courseId: selected?.courseId, course: parsed.course, deadlines: parsed.deadlines.map((d: any) => ({ ...d, confirmed: true })) })
-    setStatus('Syllabus deadlines imported for review.')
-    await refresh()
+  function handleToolSave(message: string) {
+    return () => { setStatus(message); refresh() }
   }
 
   async function startClass() {
@@ -369,41 +399,58 @@ export default function App() {
           <aside className="studydesk-library">
             <WorkspaceSection title="Courses" onAdd={() => openQuickAdd('course')}>
               <div className="studydesk-course-list">
-                {(courses.length ? courses : fallbackCourses).slice(0, 6).map((course, index) => (
-                  <button key={course.id} className={index === 0 ? 'active' : ''} onClick={() => setSelected(notes.find(n => n.courseId === course.id) ?? selected)}>
+                <button className={!selectedCourseId ? 'active' : ''} onClick={() => setSelectedCourseId(null)}>
+                  <span className="section-icon course-token">All</span>
+                  <span><strong>All Courses</strong><em>{courses.length} total</em></span>
+                </button>
+                {courses.slice(0, 6).map(course => (
+                  <button key={course.id} className={selectedCourseId === course.id ? 'active' : ''} onClick={() => {
+                    setSelectedCourseId(course.id)
+                    const firstNote = notes.find(n => n.courseId === course.id)
+                    if (firstNote) setSelected(firstNote)
+                  }}>
                     <span className="section-icon course-token">{course.code?.slice(0, 2) ?? 'CR'}</span>
-                    <span>
-                      <strong>{course.code ?? course.name}</strong>
-                      <em>{course.name}</em>
-                    </span>
+                    <span><strong>{course.code ?? course.name}</strong><em>{course.name}</em></span>
                   </button>
                 ))}
               </div>
-              <button className="studydesk-link-row">View all courses <ChevronRight size={14} /></button>
+              {courses.length === 0 && <EmptyHint message="No courses yet" hint="Add a course to organize your workspace." />}
             </WorkspaceSection>
 
             <WorkspaceSection title="Syllabus Imports" onAdd={() => openQuickAdd('syllabus')}>
-              {(syllabusNotes.length ? syllabusNotes : fallbackSyllabi).slice(0, 3).map(note => (
-                <SidebarItem key={note.id} icon={<FileText size={16} />} title={note.title} meta="Imported Apr 10" tone="teal" onClick={() => 'content' in note && setSelected(note as Note)} />
-              ))}
+              {syllabusNotes.length > 0
+                ? syllabusNotes.slice(0, 3).map(note => (
+                    <SidebarItem key={note.id} active={selected?.id === note.id} icon={<FileText size={16} />} title={note.title} meta={new Date(note.updatedAt).toLocaleDateString()} tone="teal" onClick={() => setSelected(note)} />
+                  ))
+                : <EmptyHint message="No syllabus imports" hint="Create a syllabus note to extract deadlines." />
+              }
             </WorkspaceSection>
 
             <WorkspaceSection title="Assignment Prompts" onAdd={() => openQuickAdd('assignment')}>
-              {(assignmentNotes.length ? assignmentNotes : notes).slice(0, 4).map(note => (
-                <SidebarItem key={note.id} active={selected?.id === note.id} icon={<ClipboardList size={16} />} title={note.title || 'Untitled'} meta="Due Apr 27" tone="blue" onClick={() => setSelected(note)} />
-              ))}
+              {assignmentNotes.length > 0
+                ? assignmentNotes.slice(0, 4).map(note => (
+                    <SidebarItem key={note.id} active={selected?.id === note.id} icon={<ClipboardList size={16} />} title={note.title || 'Untitled'} meta={new Date(note.updatedAt).toLocaleDateString()} tone="blue" onClick={() => setSelected(note)} />
+                  ))
+                : <EmptyHint message="No assignment prompts" hint="Add an assignment prompt to parse deliverables." />
+              }
             </WorkspaceSection>
 
             <WorkspaceSection title="Notes" onAdd={() => openQuickAdd('note')}>
-              {classNotes.slice(0, 3).map(note => (
-                <SidebarItem key={note.id} icon={<FileText size={16} />} title={note.title || 'Untitled'} meta={new Date(note.updatedAt).toLocaleDateString()} tone="orange" onClick={() => setSelected(note)} />
-              ))}
+              {classNotes.length > 0
+                ? classNotes.slice(0, 3).map(note => (
+                    <SidebarItem key={note.id} active={selected?.id === note.id} icon={<FileText size={16} />} title={note.title || 'Untitled'} meta={new Date(note.updatedAt).toLocaleDateString()} tone="orange" onClick={() => setSelected(note)} />
+                  ))
+                : <EmptyHint message="No notes" hint="Create a note to get started." />
+              }
             </WorkspaceSection>
 
             <WorkspaceSection title="Captures" onAdd={() => openQuickAdd('question')}>
-              {(captures.length ? captures : fallbackCaptures).slice(0, 3).map(capture => (
-                <SidebarItem key={capture.id} icon={<Image size={16} />} title={capture.text.slice(0, 34)} meta="Apr 21" tone="purple" />
-              ))}
+              {visibleCaptures.length > 0
+                ? visibleCaptures.slice(0, 3).map(capture => (
+                    <SidebarItem key={capture.id} icon={<Image size={16} />} title={capture.text.slice(0, 34)} meta={new Date(capture.createdAt).toLocaleDateString()} tone="purple" />
+                  ))
+                : <EmptyHint message="No captures" hint="Highlight text in any app to capture it here." />
+              }
             </WorkspaceSection>
           </aside>
 
@@ -412,55 +459,78 @@ export default function App() {
               activeTool={activeTool}
               selected={selected}
               selectedText={selectedText}
-              captures={captures}
-              courses={courses.length ? courses : fallbackCourses}
-              deadlines={orderedDeadlines.length ? orderedDeadlines : fallbackDeadlines}
-              studyItems={studyItems.length ? studyItems : fallbackStudy}
-              confusions={confusions.length ? confusions : fallbackQuestions}
-              alerts={alerts.length ? alerts : fallbackAlerts}
-              classSessions={classSessions}
+              captures={visibleCaptures}
+              courses={courses}
+              deadlines={orderedVisibleDeadlines}
+              studyItems={visibleStudyItems}
+              confusions={unresolvedConfusions}
+              alerts={activeAlerts}
+              classSessions={visibleClassSessions}
               currentCourse={currentCourse}
+              linkedAssignment={selectedLinkedAssignment}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
               onCreate={handleCreate}
-              onCreateQuiz={createQuizNote}
-              onCreateFlashcard={createFlashcard}
-              onParseAssignment={parseAssignment}
-              onParseSyllabus={parseSyllabus}
+              onAssignmentSave={handleToolSave('Assignment checklist saved.')}
+              onSyllabusConfirm={handleToolSave('Syllabus deadlines imported.')}
+              onFlashcardSave={handleToolSave('Flashcards saved to study queue.')}
+              onQuizSave={(note: Note) => { setSelected(note); setStatus('Quiz draft created.'); refresh() }}
               onStartClass={startClass}
               onCompleteDeadline={completeDeadline}
               onReviewStudyItem={reviewStudyItem}
               onResolveConfusion={resolveConfusion}
               onResolveAlert={resolveAlert}
               onEndClassSession={endClassSession}
+              onRefresh={refresh}
+              onStatus={setStatus}
             />
           </main>
 
           <aside className="studydesk-action-rail">
             <Panel title="Upcoming Deadlines" action="View all">
-              {(orderedDeadlines.length ? orderedDeadlines : fallbackDeadlines).slice(0, 4).map((d, index) => (
-                <RailItem key={d.id} icon={<CalendarDays size={15} />} title={d.title} meta={formatDue(d.deadlineAt)} status={index === 0 ? 'Due soon' : `${index + 5} days`} hot={index === 0} />
-              ))}
+              {orderedVisibleDeadlines.length > 0
+                ? orderedVisibleDeadlines.slice(0, 4).map((d, index) => {
+                    const daysLeft = Math.max(0, Math.ceil((d.deadlineAt - Date.now()) / 86_400_000))
+                    return <RailItem key={d.id} icon={<CalendarDays size={15} />} title={d.title} meta={formatDue(d.deadlineAt)} status={daysLeft === 0 ? 'Due today' : `${daysLeft}d`} hot={index === 0} />
+                  })
+                : <EmptyHint message="No deadlines yet" hint="Add a deadline or import a syllabus to populate this rail." />
+              }
             </Panel>
-            <Panel title="Assignment Checklist" badge="70%">
-              {['Review prompt & rubric', 'Outline key points', 'Draft reflection', 'Add supporting examples', 'Proofread & finalize'].map((item, index) => (
-                <ChecklistRow key={item} label={item} done={index < 3} />
-              ))}
+            <Panel title="Assignment Checklist" badge={checklistTotal > 0 ? `${checklistPercent}%` : undefined}>
+              {activeAssignment && checklistTotal > 0
+                ? <>
+                    <div className="checklist-title"><strong>{activeAssignment.title}</strong></div>
+                    {activeAssignmentChecklistItems.slice(0, 6).map(item => (
+                      <ChecklistRow key={item.id} label={item.text} done={item.completed} />
+                    ))}
+                    {checklistTotal > 6 && <small className="checklist-more">+{checklistTotal - 6} more items</small>}
+                  </>
+                : <EmptyHint message="No active assignment" hint="Parse an assignment prompt to generate a checklist." />
+              }
             </Panel>
-            <Panel title="Study Queue" badge={`${Math.max(3, studyItems.length)}`}>
-              {(studyItems.length ? studyItems : fallbackStudy).slice(0, 4).map((item, index) => (
-                <QueueRow key={item.id} title={item.front} meta={`${index === 0 ? 25 : 15 + index * 5}m`} />
-              ))}
+            <Panel title="Study Queue" badge={`${dueStudyItems.length}`}>
+              {dueStudyItems.length > 0
+                ? dueStudyItems.slice(0, 4).map(item => (
+                    <QueueRow key={item.id} title={item.front} meta={item.type} />
+                  ))
+                : <EmptyHint message="No items due" hint="Create flashcards from a document to populate the study queue." />
+              }
             </Panel>
-            <Panel title="Unresolved Questions" badge={`${Math.max(2, confusions.length)}`}>
-              {(confusions.length ? confusions : fallbackQuestions).slice(0, 3).map(question => (
-                <RailText key={question.id} title={question.question} meta="Apr 21" />
-              ))}
+            <Panel title="Unresolved Questions" badge={`${unresolvedConfusions.length}`}>
+              {unresolvedConfusions.length > 0
+                ? unresolvedConfusions.slice(0, 3).map(question => (
+                    <RailText key={question.id} title={question.question} meta={question.nextStep ?? question.status} />
+                  ))
+                : <EmptyHint message="No unresolved questions" hint="Questions from class sessions and captures appear here." />
+              }
             </Panel>
-            <Panel title="Local Alerts" badge={`${Math.max(1, alerts.length)}`}>
-              {(alerts.length ? alerts : fallbackAlerts).slice(0, 2).map(alert => (
-                <AlertCard key={alert.id} alert={alert} onDismiss={() => ipc.invoke('attentionAlerts:dismiss', { id: alert.id }).then(refresh)} onResolve={() => resolveAlert(alert.id)} />
-              ))}
+            <Panel title="Local Alerts" badge={`${activeAlerts.length}`}>
+              {activeAlerts.length > 0
+                ? activeAlerts.slice(0, 2).map(alert => (
+                    <AlertCard key={alert.id} alert={alert} onDismiss={() => ipc.invoke('attentionAlerts:dismiss', { id: alert.id }).then(refresh)} onResolve={() => resolveAlert(alert.id)} />
+                  ))
+                : <EmptyHint message="No alerts" hint="Alerts are generated from deadlines and study items." />
+              }
             </Panel>
           </aside>
         </div>
@@ -481,19 +551,22 @@ function WorkspaceSurface({
   alerts,
   classSessions,
   currentCourse,
+  linkedAssignment,
   onUpdate,
   onDelete,
   onCreate,
-  onCreateQuiz,
-  onCreateFlashcard,
-  onParseAssignment,
-  onParseSyllabus,
+  onAssignmentSave,
+  onSyllabusConfirm,
+  onFlashcardSave,
+  onQuizSave,
   onStartClass,
   onCompleteDeadline,
   onReviewStudyItem,
   onResolveConfusion,
   onResolveAlert,
   onEndClassSession,
+  onRefresh,
+  onStatus,
 }: {
   activeTool: WorkspaceTool
   selected: Note | null
@@ -506,77 +579,97 @@ function WorkspaceSurface({
   alerts: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>[]
   classSessions: ClassSession[]
   currentCourse?: Course
+  linkedAssignment?: Assignment
   onUpdate: (id: string, patch: Partial<Note>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onCreate: (type?: Note['documentType']) => Promise<void>
-  onCreateQuiz: () => Promise<void>
-  onCreateFlashcard: () => Promise<void>
-  onParseAssignment: () => Promise<void>
-  onParseSyllabus: () => Promise<void>
+  onAssignmentSave: () => void
+  onSyllabusConfirm: () => void
+  onFlashcardSave: () => void
+  onQuizSave: (note: Note) => void
   onStartClass: () => Promise<void>
   onCompleteDeadline: (id: string) => Promise<void>
   onReviewStudyItem: (id: string, difficulty: NonNullable<StudyItem['difficulty']>) => Promise<void>
   onResolveConfusion: (id: string) => Promise<void>
   onResolveAlert: (id: string) => Promise<void>
   onEndClassSession: (id: string) => Promise<void>
+  onRefresh: () => void
+  onStatus: (msg: string) => void
 }) {
   switch (activeTool) {
     case 'dashboard':
       return <DashboardView courses={courses} deadlines={deadlines} studyItems={studyItems} alerts={alerts} onCompleteDeadline={onCompleteDeadline} onResolveAlert={onResolveAlert} />
     case 'quiz':
-      return <QuizView selected={selected} selectedText={selectedText} studyItems={studyItems} onCreateQuiz={onCreateQuiz} />
+      return <QuizView selected={selected} selectedText={selectedText} courseId={currentCourse?.id} studyItems={studyItems} onSave={onQuizSave} />
     case 'flashcards':
-      return <FlashcardsView selectedText={selectedText} studyItems={studyItems} onCreateFlashcard={onCreateFlashcard} onReviewStudyItem={onReviewStudyItem} />
+      return <FlashcardsView selectedText={selectedText} studyItems={studyItems} courseId={currentCourse?.id} onReviewStudyItem={onReviewStudyItem} onSave={onFlashcardSave} onStatus={onStatus} />
     case 'assignment':
-      return <AssignmentParserView selected={selected} selectedText={selectedText} onParse={onParseAssignment} />
+      return <AssignmentParserView selected={selected} selectedText={selectedText} courseId={currentCourse?.id} deadlines={deadlines} onSave={onAssignmentSave} />
     case 'syllabus':
-      return <SyllabusImportView selected={selected} deadlines={deadlines} onCreate={onCreate} onParseSyllabus={onParseSyllabus} onCompleteDeadline={onCompleteDeadline} />
+      return <SyllabusImportView selected={selected} selectedText={selectedText} courseId={currentCourse?.id} onCreate={onCreate} onConfirm={onSyllabusConfirm} />
     case 'class':
-      return <ClassModeView currentCourse={currentCourse} captures={captures} confusions={confusions} classSessions={classSessions} onStartClass={onStartClass} onResolveConfusion={onResolveConfusion} onEndClassSession={onEndClassSession} />
+      return <ClassModeView currentCourse={currentCourse} captures={captures} confusions={confusions} classSessions={classSessions} onStartClass={onStartClass} onResolveConfusion={onResolveConfusion} onEndClassSession={onEndClassSession} onRefresh={onRefresh} />
     case 'today':
     default:
-      return <DocumentWorkspace selected={selected} captures={captures} currentCourse={currentCourse} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} />
+      return <DocumentWorkspace selected={selected} selectedText={selectedText} captures={captures} currentCourse={currentCourse} linkedAssignment={linkedAssignment} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} onRefresh={onRefresh} />
   }
 }
 
 function DocumentWorkspace({
   selected,
+  selectedText,
   captures,
   currentCourse,
+  linkedAssignment,
   onUpdate,
   onDelete,
   onCreate,
+  onRefresh,
 }: {
   selected: Note | null
+  selectedText: string
   captures: Capture[]
   currentCourse?: Course
+  linkedAssignment?: Assignment
   onUpdate: (id: string, patch: Partial<Note>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onCreate: (type?: Note['documentType']) => Promise<void>
+  onRefresh: () => void
 }) {
+  const [questionStatus, setQuestionStatus] = useState('')
+
+  async function createQuestionFromDoc() {
+    if (!selected || !selectedText) return
+    const text = selectedText.trim().slice(0, 200)
+    const question = text.includes('?') ? text : `What should I understand about: ${text.split(/[.\n]/)[0]?.slice(0, 100) || text.slice(0, 100)}?`
+    if (!question.trim()) return
+    await ipc.invoke('confusion:create', { question, context: `From note: ${selected.title}`, courseId: selected.courseId ?? currentCourse?.id })
+    setQuestionStatus('Question created.')
+    onRefresh()
+    setTimeout(() => setQuestionStatus(''), 2000)
+  }
+
   return (
     <section className="studydesk-document-card">
       <header className="document-card-header">
         <div>
           <button className="ghost-icon"><ChevronRight size={16} /></button>
-          <span>Assignment Prompt</span>
+          <span>{selected?.documentType?.replace('_', ' ') ?? 'Document'}</span>
         </div>
         <div className="document-actions">
-          <span>Saved just now</span>
-          <button className="icon-pill compact"><Share2 size={15} /></button>
-          <button className="share-button"><Share2 size={14} /> Share</button>
+          {selected && <span>Saved {new Date(selected.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
           <button className="icon-pill compact"><MoreHorizontal size={16} /></button>
         </div>
       </header>
       {selected ? (
         <>
           <div className="document-context-row">
-            <span>{currentCourse?.code ?? 'BUAD 5901'}</span>
-            <Circle size={4} fill="currentColor" />
-            <span>{currentCourse?.name ?? 'Research Methods'}</span>
-            <Circle size={4} fill="currentColor" />
-            <span>Due Apr 27, 10:44 PM</span>
+            {currentCourse && <><span>{currentCourse.code ?? currentCourse.name}</span><Circle size={4} fill="currentColor" /></>}
+            <span>{selected.documentType?.replace('_', ' ') ?? 'note'}</span>
+            {linkedAssignment?.dueDate && <><Circle size={4} fill="currentColor" /><span>Due {formatDue(linkedAssignment.dueDate)}</span></>}
+            {selectedText && <button onClick={createQuestionFromDoc}>Create question</button>}
             <button onClick={() => onDelete(selected.id)}>Delete</button>
+            {questionStatus && <em>{questionStatus}</em>}
           </div>
           <Editor
             key={selected.id}
@@ -585,10 +678,7 @@ function DocumentWorkspace({
             onUpdate={(patch) => onUpdate(selected.id, patch)}
           />
           <footer className="document-footer">
-            <span>652 words</span>
-            <span>Readability: Good</span>
-            <span>Focus</span>
-            <strong>100%</strong>
+            <span>Last saved {new Date(selected.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
           </footer>
         </>
       ) : (
@@ -601,52 +691,107 @@ function DocumentWorkspace({
   )
 }
 
-function AssignmentParserView({ selected, selectedText, onParse }: { selected: Note | null; selectedText: string; onParse: () => Promise<void> }) {
-  const title = selected?.title || 'Research Reflection Draft'
-  const prompt = selectedText || 'Write a 2-3 page reflection on your research process. Describe your topic, summarize your sources, evaluate what you learned, and submit the draft by the due date.'
+function AssignmentParserView({ selected, selectedText, courseId, deadlines, onSave }: { selected: Note | null; selectedText: string; courseId?: string; deadlines: AcademicDeadline[]; onSave: () => void }) {
+  const [review, setReview] = useState<AssignmentParseReview | null>(null)
+  const [parsing, setParsing] = useState(false)
+
+  async function handleParse() {
+    if (!selectedText) return
+    setParsing(true)
+    try {
+      const result = await ipc.invoke<AssignmentParseReview>('assignment:parse', { text: selectedText, courseId, title: selected?.title })
+      setReview(result)
+    } finally { setParsing(false) }
+  }
+
+  async function handleSave() {
+    if (!review || !selected) return
+    const title = review.title.trim() || selected.title || 'Untitled assignment'
+    const patch = {
+      title,
+      courseId,
+      dueDate: review.dueDate,
+      sourceType: 'assignment_prompt' as const,
+      sourceId: selected.id,
+      deliverables: review.deliverables,
+      formatRequirements: review.formatRequirements,
+      rubricItems: review.rubricItems,
+      submissionChecklist: review.submissionChecklist,
+    }
+    let assignmentId: string
+    if (selected.linkedAssignmentId) {
+      // Update existing linked assignment
+      const updated = await ipc.invoke<Assignment>('assignment:update', { id: selected.linkedAssignmentId, patch })
+      assignmentId = updated.id
+    } else {
+      // Create new assignment
+      const created = await ipc.invoke<Assignment>('assignment:create', patch)
+      assignmentId = created.id
+      // Link note to assignment
+      await ipc.invoke('notes:update', { id: selected.id, patch: { documentType: 'assignment_prompt', linkedAssignmentId: assignmentId, courseId } })
+    }
+    // Create or update academic deadline from due date
+    if (review.dueDate) {
+      const existing = deadlines.find(d => d.assignmentId === assignmentId || (d.sourceId === selected.id && d.sourceType === 'assignment_prompt'))
+      if (existing) {
+        await ipc.invoke('deadline:update', { id: existing.id, patch: { title: review.title, deadlineAt: review.dueDate, courseId } })
+      } else {
+        await ipc.invoke('deadline:create', { title: review.title, deadlineAt: review.dueDate, courseId, assignmentId, type: 'assignment', sourceType: 'assignment_prompt', sourceId: selected.id, confirmed: true })
+      }
+    }
+    setReview(null)
+    onSave()
+  }
+
   return (
     <section className="parser-card">
       <header className="parser-header">
-        <div className="parser-tab"><FileText size={15} /> {title}<span>x</span></div>
-        <button className="icon-pill compact">+</button>
-        <button className="review-button" onClick={onParse}><Sparkles size={15} /> Review before save</button>
+        <div className="parser-tab"><FileText size={15} /> {selected?.title || 'Untitled'}</div>
+        {!review
+          ? <button className="review-button" onClick={handleParse} disabled={!selectedText || parsing}><Sparkles size={15} /> {parsing ? 'Parsing...' : 'Parse assignment'}</button>
+          : <button className="review-button" onClick={handleSave}><Sparkles size={15} /> Save assignment</button>
+        }
       </header>
-      <div className="parser-tabs">
-        {['Document', 'Assignment Parser', 'Outliner', 'Mind Map', 'Flashcards'].map(label => (
-          <span key={label} className={label === 'Assignment Parser' ? 'active' : ''}>{label}</span>
-        ))}
-      </div>
-      <div className="parser-grid">
-        <article className="parser-source">
-          <p className="eyebrow">Parsed from <strong>{title}</strong></p>
-          <h1>{title}</h1>
-          <p>{prompt.slice(0, 180)}</p>
-          <p>In your reflection, <mark>describe your topic</mark>, explain why <mark>this topic matters</mark>, summarize key sources, and evaluate how your <mark>thinking evolved</mark>.</p>
-          <p>Use <mark className="green">at least 3 credible sources</mark>. Follow <mark className="blue">MLA format</mark> for in-text citations and a Works Cited page.</p>
-          <p>Your draft should be <mark className="purple">2-3 pages, double-spaced, 12pt font</mark>, with 1-inch margins.</p>
-          <button className="text-action"><Zap size={15} /> Re-parse document</button>
-        </article>
-        <article className="parser-details">
-          <h2><Sparkles size={17} /> Extracted details</h2>
-          <DetailBlock icon={<CalendarDays size={19} />} title="Due date" body="Apr 27, 2025 at 10:44 PM" />
-          <DetailBlock icon={<FileText size={19} />} title="Deliverables" body="Research reflection draft. File type: .docx or .pdf" />
-          <DetailBlock icon={<ClipboardList size={19} />} title="Format rules" body="2-3 pages, double-spaced, 12pt font, 1-inch margins" />
-          <DetailBlock icon={<BookOpen size={19} />} title="Citation rules" body="MLA format. In-text citations + Works Cited" />
-          <DetailBlock icon={<CheckCircle2 size={19} />} title="Checklist" body="Topic described, sources summarized, reflection drafted" />
-        </article>
-        <article className="parser-flashcards">
-          <h2><BookOpen size={17} /> Flashcards from selection <span>6</span></h2>
-          {[
-            ['What is the main goal of this assignment?', 'To write a 2-3 page reflection on your research process.'],
-            ['How many sources are required?', 'At least 3 credible sources.'],
-            ['What citation style should be used?', 'MLA format.'],
-            ['What file types are accepted?', '.docx or .pdf.'],
-            ['What should the reflection include?', 'Topic, why it matters, key sources, and what you learned.'],
-          ].map(([q, a]) => <Flashcard key={q} question={q} answer={a} />)}
-          <button className="outline-button">Generate more flashcards</button>
-        </article>
-      </div>
+      {!selectedText && !review && (
+        <EmptyHint message="No document selected" hint="Select a document with assignment text to parse." />
+      )}
+      {selectedText && !review && (
+        <div className="parser-grid">
+          <article className="parser-source">
+            <p className="eyebrow">Source: <strong>{selected?.title}</strong></p>
+            <p>{selectedText.slice(0, 300)}{selectedText.length > 300 ? '...' : ''}</p>
+          </article>
+          <article className="parser-details">
+            <p className="empty-hint">Click "Parse assignment" to extract details for review.</p>
+          </article>
+        </div>
+      )}
+      {review && (
+        <div className="parser-grid">
+          <article className="parser-source">
+            <label><span>Title</span><input value={review.title} onChange={e => setReview({ ...review, title: e.target.value })} /></label>
+            <label><span>Due date</span><input type="datetime-local" value={review.dueDate ? new Date(review.dueDate).toISOString().slice(0, 16) : ''} onChange={e => setReview({ ...review, dueDate: e.target.value ? new Date(e.target.value).getTime() : undefined })} /></label>
+          </article>
+          <article className="parser-details">
+            <h2><Sparkles size={17} /> Extracted details</h2>
+            <ReviewChecklistSection title="Deliverables" items={review.deliverables} />
+            <ReviewChecklistSection title="Format requirements" items={review.formatRequirements} />
+            <ReviewChecklistSection title="Rubric items" items={review.rubricItems} />
+            <ReviewChecklistSection title="Submission checklist" items={review.submissionChecklist} />
+          </article>
+        </div>
+      )}
     </section>
+  )
+}
+
+function ReviewChecklistSection({ title, items }: { title: string; items: ChecklistItem[] }) {
+  if (items.length === 0) return <div className="review-section"><strong>{title}</strong><em>Not found</em></div>
+  return (
+    <div className="review-section">
+      <strong>{title}</strong>
+      {items.map(item => <div key={item.id} className="check-row"><span>{'○'}</span><span>{item.text}</span></div>)}
+    </div>
   )
 }
 
@@ -718,112 +863,333 @@ function DashboardView({
   )
 }
 
-function QuizView({ selected, selectedText, studyItems, onCreateQuiz }: { selected: Note | null; selectedText: string; studyItems: StudyItem[]; onCreateQuiz: () => Promise<void> }) {
-  const prompts = selectedText
-    ? selectedText.split(/[.\n]/).map(line => line.trim()).filter(line => line.length > 24).slice(0, 4)
-    : ['Explain the purpose of the assignment.', 'Identify the strongest source.', 'Define the next revision step.']
+function QuizView({ selected, selectedText, courseId, studyItems, onSave }: { selected: Note | null; selectedText: string; courseId?: string; studyItems: StudyItem[]; onSave: (note: Note) => void }) {
+  const [drafts, setDrafts] = useState<QuizQuestionDraft[]>([])
+  const [savedNote, setSavedNote] = useState<Note | null>(null)
+
+  function generate() {
+    if (!selectedText) return
+    const questions: QuizQuestionDraft[] = []
+    const lines = selectedText.split(/\n+/).map(l => l.trim()).filter(Boolean)
+    for (const line of lines) {
+      if (line.length < 10) continue
+      // Headings or short standalone lines -> concept question
+      if (line.length < 60 && !line.includes('.')) {
+        questions.push({ question: `What should you remember about ${line}?` })
+      // Definition patterns
+      } else if (/\b(is|means|refers to|defined as)\b/i.test(line)) {
+        const term = line.split(/\b(is|means|refers to|defined as)\b/i)[0].trim()
+        if (term.length > 3 && term.length < 80) {
+          questions.push({ question: `What does "${term}" mean?` })
+        }
+      // Longer meaningful sentences
+      } else if (line.length > 40) {
+        const shortened = line.slice(0, 80).replace(/[.,;:]+$/, '')
+        questions.push({ question: `Why is this important: ${shortened}?` })
+      }
+      if (questions.length >= 8) break
+    }
+    setDrafts(questions)
+  }
+
+  function removeQuestion(index: number) {
+    setDrafts(prev => prev.filter((_, i) => i !== index))
+  }
+
+  function updateQuestion(index: number, value: string) {
+    setDrafts(prev => prev.map((q, i) => i === index ? { question: value } : q))
+  }
+
+  async function handleSave() {
+    if (drafts.length === 0) return
+    const content = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Quiz draft' }] },
+        ...drafts.map((q, i) => ({
+          type: 'paragraph',
+          content: [{ type: 'text', text: `${i + 1}. ${q.question}` }],
+        })),
+      ],
+    })
+    const note = await ipc.invoke<Note>('notes:create', { title: `Quiz: ${selected?.title || 'Study'}`, content })
+    const updated = await ipc.invoke<Note>('notes:update', { id: note.id, patch: { documentType: 'reading', courseId, tags: ['quiz'] } })
+    setSavedNote(updated)
+    onSave(updated)
+  }
+
+  async function saveAsStudyItems() {
+    if (drafts.length === 0 && !savedNote) return
+    const questions = drafts.length > 0 ? drafts : []
+    // If already saved as note, re-derive questions from the saved note
+    const items = questions.length > 0 ? questions : (savedNote ? extractQuestionsFromNote(savedNote) : [])
+    for (const q of items) {
+      if (!q.question.trim()) continue
+      const isDuplicate = studyItems.some(s => s.front === q.question.trim())
+      if (isDuplicate) continue
+      await ipc.invoke('study:create', { front: q.question.trim(), type: 'question', courseId })
+    }
+    setDrafts([])
+    setSavedNote(null)
+  }
+
   return (
     <section className="phase3-card quiz-view">
       <header className="phase3-header">
         <div>
           <p className="phase3-eyebrow">Quiz builder</p>
-          <h1>{selected ? `Quiz from ${selected.title}` : 'Quiz from current document'}</h1>
-          <span>Questions are generated from the selected document and saved as editable study notes.</span>
+          <h1>{selected ? `Quiz from ${selected.title}` : 'Quiz builder'}</h1>
+          <span>Generate questions from selected document text. Review and edit before saving.</span>
         </div>
-        <button className="review-button" onClick={onCreateQuiz}><HelpCircle size={15} /> Create quiz draft</button>
+        {drafts.length === 0 && !savedNote
+          ? <button className="review-button" onClick={generate} disabled={!selectedText}><HelpCircle size={15} /> Generate questions</button>
+          : drafts.length > 0
+            ? <div className="phase3-actions"><button className="review-button" onClick={handleSave}><HelpCircle size={15} /> Save quiz draft</button><button className="outline-button" onClick={saveAsStudyItems}><ClipboardList size={15} /> Also save as study questions</button></div>
+            : savedNote
+              ? <button className="outline-button" onClick={saveAsStudyItems}><ClipboardList size={15} /> Also save as study questions</button>
+              : null
+        }
       </header>
-      <div className="quiz-grid">
-        {prompts.map((prompt, index) => (
-          <article className="quiz-card" key={prompt}>
-            <small>Question {index + 1}</small>
-            <h2>What should you remember about this?</h2>
-            <p>{prompt}</p>
-            <div><span>Short answer</span><strong>{index === 0 ? 'High yield' : 'Practice'}</strong></div>
-          </article>
-        ))}
-      </div>
-      <footer className="phase3-footer">{studyItems.length} study item(s) already available in the queue.</footer>
+      {!selectedText && drafts.length === 0 && !savedNote && (
+        <EmptyHint message="No document selected" hint="Select a document to generate quiz questions from its content." />
+      )}
+      {selectedText && drafts.length === 0 && !savedNote && (
+        <div className="phase3-panel">
+          <p className="empty-hint">Click "Generate questions" to create quiz candidates from the selected document.</p>
+        </div>
+      )}
+      {drafts.length > 0 && (
+        <div className="quiz-grid">
+          {drafts.map((draft, index) => (
+            <article className="quiz-card" key={index}>
+              <small>Question {index + 1} <button className="inline-action" onClick={() => removeQuestion(index)}>Remove</button></small>
+              <input value={draft.question} onChange={e => updateQuestion(index, e.target.value)} className="quiz-edit-input" />
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
 
-function FlashcardsView({ selectedText, studyItems, onCreateFlashcard, onReviewStudyItem }: { selectedText: string; studyItems: StudyItem[]; onCreateFlashcard: () => Promise<void>; onReviewStudyItem: (id: string, difficulty: NonNullable<StudyItem['difficulty']>) => Promise<void> }) {
-  const cards = (studyItems.length ? studyItems : fallbackStudy).slice(0, 6)
+function FlashcardsView({ selectedText, studyItems, courseId, onReviewStudyItem, onSave, onStatus }: { selectedText: string; studyItems: StudyItem[]; courseId?: string; onReviewStudyItem: (id: string, difficulty: NonNullable<StudyItem['difficulty']>) => Promise<void>; onSave: () => void; onStatus: (msg: string) => void }) {
+  const [drafts, setDrafts] = useState<FlashcardDraft[]>([])
+
+  function generate() {
+    if (!selectedText) return
+    const cards: FlashcardDraft[] = []
+    const lines = selectedText.split(/\n+/).map(l => l.trim()).filter(l => l.length > 5)
+    for (const line of lines) {
+      // Lines containing ':' -> front/back
+      if (line.includes(':')) {
+        const [front, ...rest] = line.split(':')
+        const back = rest.join(':').trim()
+        if (front.trim().length > 3 && back.length > 3) {
+          cards.push({ front: front.trim(), back, type: 'flashcard' })
+          continue
+        }
+      }
+      // Definition patterns
+      const defMatch = line.match(/^(.+?)\b(is|means|refers to|defined as)\b(.+)/i)
+      if (defMatch && defMatch[1].trim().length > 3 && defMatch[3].trim().length > 5) {
+        cards.push({ front: defMatch[1].trim(), back: defMatch[3].trim(), type: 'definition' })
+        continue
+      }
+      // Short standalone lines -> concept
+      if (line.length < 60 && !line.includes('.')) {
+        cards.push({ front: line, back: '', type: 'concept' })
+      }
+      if (cards.length >= 10) break
+    }
+    setDrafts(cards)
+  }
+
+  function removeDraft(index: number) {
+    setDrafts(prev => prev.filter((_, i) => i !== index))
+  }
+
+  function updateDraft(index: number, patch: Partial<FlashcardDraft>) {
+    setDrafts(prev => prev.map((d, i) => i === index ? { ...d, ...patch } : d))
+  }
+
+  async function handleSave() {
+    if (drafts.length === 0) return
+    const validDrafts = drafts.filter(d => d.front.trim().length > 0)
+    let saved = 0
+    let skipped = 0
+    for (const draft of validDrafts) {
+      const isDuplicate = studyItems.some(item => item.front === draft.front.trim() && item.back === (draft.back?.trim() || undefined))
+      if (isDuplicate) { skipped++; continue }
+      await ipc.invoke('study:create', { front: draft.front.trim(), back: draft.back?.trim() || undefined, type: 'flashcard', courseId })
+      saved++
+    }
+    setDrafts([])
+    onStatus(skipped > 0 ? `${saved} saved, ${skipped} skipped (duplicates).` : `${saved} flashcards saved.`)
+    onSave()
+  }
+
+  const cards = studyItems.slice(0, 6)
   return (
     <section className="phase3-card flashcards-view">
       <header className="phase3-header">
         <div>
           <p className="phase3-eyebrow">Flashcards</p>
-          <h1>Review queue</h1>
-          <span>{selectedText ? 'Create a card from the selected document, then review it here.' : 'Select a document to create cards from its content.'}</span>
+          <h1>Generate and review</h1>
+          <span>{selectedText ? 'Extract flashcard candidates from the selected document.' : 'Select a document to generate flashcards.'}</span>
         </div>
-        <button className="review-button" onClick={onCreateFlashcard}><ClipboardList size={15} /> Add from document</button>
+        {drafts.length === 0
+          ? <button className="review-button" onClick={generate} disabled={!selectedText}><ClipboardList size={15} /> Generate from document</button>
+          : <button className="review-button" onClick={handleSave}><ClipboardList size={15} /> Save flashcards ({drafts.length})</button>
+        }
       </header>
-      <div className="flashcard-board">
-        {cards.map((item, index) => (
-          <article className="study-card" key={item.id}>
-            <span>Card {index + 1}</span>
-            <h2>{item.front}</h2>
-            <p>{item.back || 'Answer will be added during review.'}</p>
-            <footer><small>{item.type}</small><strong>{item.reviewCount} reviews</strong></footer>
-            <div className="review-actions">
-              {(['again', 'hard', 'good', 'easy'] as const).map(difficulty => (
-                <button key={difficulty} onClick={() => onReviewStudyItem(item.id, difficulty)}>{difficulty}</button>
-              ))}
-            </div>
-          </article>
-        ))}
-      </div>
+      {drafts.length > 0 && (
+        <div className="flashcard-board">
+          {drafts.map((draft, index) => (
+            <article className="study-card" key={index}>
+              <span>Draft {index + 1} <button className="inline-action" onClick={() => removeDraft(index)}>Remove</button></span>
+              <input value={draft.front} onChange={e => updateDraft(index, { front: e.target.value })} placeholder="Front" className="quiz-edit-input" />
+              <input value={draft.back} onChange={e => updateDraft(index, { back: e.target.value })} placeholder="Back" className="quiz-edit-input" />
+              <small>{draft.type}</small>
+            </article>
+          ))}
+        </div>
+      )}
+      {drafts.length === 0 && cards.length > 0 && (
+        <>
+          <h2 className="section-spacer">Study queue ({studyItems.length})</h2>
+          <div className="flashcard-board">
+            {cards.map((item, index) => (
+              <article className="study-card" key={item.id}>
+                <span>Card {index + 1}</span>
+                <h2>{item.front}</h2>
+                <p>{item.back || 'Answer will be added during review.'}</p>
+                <footer><small>{item.type}</small><strong>{item.reviewCount} reviews</strong></footer>
+                <div className="review-actions">
+                  {(['again', 'hard', 'good', 'easy'] as const).map(difficulty => (
+                    <button key={difficulty} onClick={() => onReviewStudyItem(item.id, difficulty)}>{difficulty}</button>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+      {drafts.length === 0 && cards.length === 0 && !selectedText && (
+        <EmptyHint message="No flashcards yet" hint="Select a document to generate flashcards, or create them manually." />
+      )}
     </section>
   )
 }
 
-function SyllabusImportView({
-  selected,
-  deadlines,
-  onCreate,
-  onParseSyllabus,
-  onCompleteDeadline,
-}: {
+function SyllabusImportView({ selected, selectedText, courseId, onCreate, onConfirm }: {
   selected: Note | null
-  deadlines: AcademicDeadline[]
+  selectedText: string
+  courseId?: string
   onCreate: (type?: Note['documentType']) => Promise<void>
-  onParseSyllabus: () => Promise<void>
-  onCompleteDeadline: (id: string) => Promise<void>
+  onConfirm: () => void
 }) {
+  const [review, setReview] = useState<SyllabusParseReview | null>(null)
+  const [parsing, setParsing] = useState(false)
+
+  async function handleParse() {
+    if (!selectedText) return
+    setParsing(true)
+    try {
+      const result = await ipc.invoke<{ course: SyllabusParseReview['course']; deadlines: Array<{ title: string; deadlineAt: number; type: string; confirmed: boolean }> }>('syllabus:parse', { text: selectedText, courseId })
+      setReview({
+        course: result.course,
+        deadlines: result.deadlines.map(d => ({ title: d.title, deadlineAt: d.deadlineAt, type: d.type, included: true })),
+      })
+    } finally { setParsing(false) }
+  }
+
+  async function handleConfirm() {
+    if (!review) return
+    const included = review.deadlines.filter(d => d.included).map(d => ({
+      title: d.title,
+      deadlineAt: d.deadlineAt,
+      type: d.type,
+      confirmed: true,
+      sourceType: 'syllabus',
+      sourceId: selected?.id,
+    }))
+    const result = await ipc.invoke<{ courseId?: string }>('syllabus:confirmImport', {
+      courseId,
+      course: !courseId ? review.course : undefined,
+      deadlines: included,
+    })
+    // Update source note with syllabus type and course link
+    if (selected) {
+      await ipc.invoke('notes:update', { id: selected.id, patch: { documentType: 'syllabus', courseId: result?.courseId ?? courseId } })
+    }
+    setReview(null)
+    onConfirm()
+  }
+
+  function toggleDeadline(index: number) {
+    if (!review) return
+    const updated = [...review.deadlines]
+    updated[index] = { ...updated[index], included: !updated[index].included }
+    setReview({ ...review, deadlines: updated })
+  }
+
   return (
     <section className="phase3-card syllabus-view">
       <header className="phase3-header">
         <div>
           <p className="phase3-eyebrow">Syllabus import</p>
           <h1>Extract deadlines and course rules</h1>
-          <span>Use the selected document as syllabus text, then confirm imported deadlines before they enter the workspace.</span>
+          <span>Parse syllabus text, review extracted deadlines, then confirm import.</span>
         </div>
         <div className="phase3-actions">
           <button className="outline-button" onClick={() => onCreate('syllabus')}><Upload size={15} /> New syllabus note</button>
-          <button className="review-button" onClick={onParseSyllabus}><Sparkles size={15} /> Parse syllabus</button>
+          {!review
+            ? <button className="review-button" onClick={handleParse} disabled={!selectedText || parsing}><Sparkles size={15} /> {parsing ? 'Parsing...' : 'Parse syllabus'}</button>
+            : <button className="review-button" onClick={handleConfirm}><Sparkles size={15} /> Confirm import</button>
+          }
         </div>
       </header>
-      <div className="syllabus-grid">
-        <section className="phase3-panel">
-          <h2>Selected source</h2>
-          <div className="source-preview">
-            <FileText size={22} />
-            <strong>{selected?.title ?? 'No document selected'}</strong>
-            <span>{selected?.documentType ?? 'Choose or create a syllabus note'}</span>
-          </div>
-        </section>
-        <section className="phase3-panel wide">
-          <h2>Imported deadline preview</h2>
-          {deadlines.slice(0, 5).map(deadline => (
-            <div className="timeline-row" key={deadline.id}>
-              <CalendarDays size={16} />
-              <div><strong>{deadline.title}</strong><em>{formatDue(deadline.deadlineAt)}</em></div>
-              <button className="inline-action" onClick={() => onCompleteDeadline(deadline.id)}>{deadline.confirmed ? 'Complete' : 'Review'}</button>
+      {!selectedText && !review && (
+        <EmptyHint message="No document selected" hint="Select or create a syllabus note, then parse it." />
+      )}
+      {selectedText && !review && (
+        <div className="syllabus-grid">
+          <section className="phase3-panel">
+            <h2>Selected source</h2>
+            <div className="source-preview">
+              <FileText size={22} />
+              <strong>{selected?.title ?? 'Untitled'}</strong>
+              <span>{selected?.documentType?.replace('_', ' ') ?? 'document'}</span>
             </div>
-          ))}
-        </section>
-      </div>
+          </section>
+          <section className="phase3-panel wide">
+            <p className="empty-hint">Click "Parse syllabus" to extract deadlines for review.</p>
+          </section>
+        </div>
+      )}
+      {review && (
+        <div className="syllabus-grid">
+          <section className="phase3-panel">
+            <h2>Course info</h2>
+            <div className="source-preview">
+              <strong>{review.course.code ?? ''} {review.course.name ?? 'Unknown course'}</strong>
+              {review.course.professorName && <span>Prof. {review.course.professorName}</span>}
+              {review.course.professorEmail && <span>{review.course.professorEmail}</span>}
+              {review.course.term && <span>Term: {review.course.term}</span>}
+            </div>
+          </section>
+          <section className="phase3-panel wide">
+            <h2>Deadlines ({review.deadlines.filter(d => d.included).length}/{review.deadlines.length} included)</h2>
+            {review.deadlines.length === 0 && <EmptyHint message="No deadlines found" hint="The parser did not detect any dates in this document." />}
+            {review.deadlines.map((d, i) => (
+              <div className="timeline-row" key={i}>
+                <input type="checkbox" checked={d.included} onChange={() => toggleDeadline(i)} />
+                <div><strong>{d.title}</strong><em>{formatDue(d.deadlineAt)} - {d.type}</em></div>
+              </div>
+            ))}
+          </section>
+        </div>
+      )}
     </section>
   )
 }
@@ -836,6 +1202,7 @@ function ClassModeView({
   onStartClass,
   onResolveConfusion,
   onEndClassSession,
+  onRefresh,
 }: {
   currentCourse?: Course
   captures: Capture[]
@@ -844,15 +1211,38 @@ function ClassModeView({
   onStartClass: () => Promise<void>
   onResolveConfusion: (id: string) => Promise<void>
   onEndClassSession: (id: string) => Promise<void>
+  onRefresh: () => void
 }) {
+  const [questionInput, setQuestionInput] = useState('')
+  const [actionInput, setActionInput] = useState('')
   const activeSession = classSessions.find(session => !session.endedAt)
+  const recentSessions = classSessions.filter(s => s.endedAt).slice(0, 3)
+
+  async function addQuestion() {
+    if (!questionInput.trim() || !activeSession) return
+    const text = questionInput.trim()
+    await ipc.invoke('class:update', { id: activeSession.id, patch: { questions: [...activeSession.questions, text] } })
+    // Also create a confusion item
+    await ipc.invoke('confusion:create', { question: text, context: `Asked during: ${activeSession.title}`, courseId: activeSession.courseId })
+    setQuestionInput('')
+    onRefresh()
+  }
+
+  async function addActionItem() {
+    if (!actionInput.trim() || !activeSession) return
+    const text = actionInput.trim()
+    await ipc.invoke('class:update', { id: activeSession.id, patch: { actionItems: [...activeSession.actionItems, text] } })
+    setActionInput('')
+    onRefresh()
+  }
+
   return (
     <section className="phase3-card class-view">
       <header className="phase3-header">
         <div>
           <p className="phase3-eyebrow">Class mode</p>
           <h1>{currentCourse ? `${currentCourse.code ?? currentCourse.name} session` : 'Live class capture'}</h1>
-          <span>Capture notes, questions, and follow-ups while preserving the same StudyDesk shell.</span>
+          <span>Capture notes, questions, and follow-ups during class.</span>
         </div>
         {activeSession
           ? <button className="outline-button phase4-end" onClick={() => onEndClassSession(activeSession.id)}><Clock3 size={15} /> End class</button>
@@ -861,23 +1251,64 @@ function ClassModeView({
       </header>
       <div className="class-grid">
         <section className="phase3-panel wide">
-          <h2>{activeSession ? `Active: ${activeSession.title}` : 'Live capture stream'}</h2>
-          {(captures.length ? captures : fallbackCaptures).slice(0, 5).map(capture => (
-            <div className="capture-row" key={capture.id}>
-              <PenLine size={16} />
-              <p>{capture.text}</p>
+          <h2>{activeSession ? `Active: ${activeSession.title}` : 'Captures'}</h2>
+          {activeSession && (
+            <div className="class-inputs">
+              <div className="class-input-row">
+                <input value={questionInput} onChange={e => setQuestionInput(e.target.value)} placeholder="Add a question..." onKeyDown={e => e.key === 'Enter' && addQuestion()} />
+                <button className="inline-action" onClick={addQuestion} disabled={!questionInput.trim()}>+ Question</button>
+              </div>
+              <div className="class-input-row">
+                <input value={actionInput} onChange={e => setActionInput(e.target.value)} placeholder="Add an action item..." onKeyDown={e => e.key === 'Enter' && addActionItem()} />
+                <button className="inline-action" onClick={addActionItem} disabled={!actionInput.trim()}>+ Action</button>
+              </div>
+              {activeSession.questions.length > 0 && (
+                <div className="class-list">
+                  <strong>Questions ({activeSession.questions.length})</strong>
+                  {activeSession.questions.slice(-3).map((q, i) => <div className="compact-row" key={i}><HelpCircle size={14} /><span>{q}</span></div>)}
+                </div>
+              )}
+              {activeSession.actionItems.length > 0 && (
+                <div className="class-list">
+                  <strong>Action items ({activeSession.actionItems.length})</strong>
+                  {activeSession.actionItems.slice(-3).map((a, i) => <div className="compact-row" key={i}><Target size={14} /><span>{a}</span></div>)}
+                </div>
+              )}
             </div>
-          ))}
+          )}
+          {!activeSession && captures.length > 0
+            ? captures.slice(0, 5).map(capture => (
+                <div className="capture-row" key={capture.id}>
+                  <PenLine size={16} />
+                  <p>{capture.text}</p>
+                </div>
+              ))
+            : !activeSession && <EmptyHint message="No captures" hint="Highlight text in any app during class to capture it here." />
+          }
+          {recentSessions.length > 0 && (
+            <>
+              <h2 className="section-spacer">Recent sessions</h2>
+              {recentSessions.map(session => (
+                <div className="compact-row" key={session.id}>
+                  <GraduationCap size={16} />
+                  <div><strong>{session.title}</strong><em>{new Date(session.startedAt).toLocaleDateString()}</em></div>
+                </div>
+              ))}
+            </>
+          )}
         </section>
         <section className="phase3-panel">
-          <h2>Questions to resolve</h2>
-          {(confusions.length ? confusions : fallbackQuestions).slice(0, 4).map(item => (
-            <div className="compact-row action-row" key={item.id}>
-              <HelpCircle size={18} />
-              <div><strong>{item.question}</strong><em>{item.status}</em></div>
-              <button onClick={() => onResolveConfusion(item.id)}>Resolve</button>
-            </div>
-          ))}
+          <h2>Unresolved questions</h2>
+          {confusions.length > 0
+            ? confusions.slice(0, 4).map(item => (
+                <div className="compact-row action-row" key={item.id}>
+                  <HelpCircle size={18} />
+                  <div><strong>{item.question}</strong><em>{item.nextStep ?? item.status}</em></div>
+                  <button onClick={() => onResolveConfusion(item.id)}>Resolve</button>
+                </div>
+              ))
+            : <EmptyHint message="No unresolved questions" hint="Questions captured during class appear here." />
+          }
         </section>
       </div>
     </section>
@@ -975,6 +1406,14 @@ function quickAddTitle(kind: QuickAddKind) {
   }
 }
 
+function EmptyHint({ message, hint }: { message: string; hint: string }) {
+  return <div className="empty-hint"><strong>{message}</strong><span>{hint}</span></div>
+}
+
+function ChecklistRow({ label, done }: { label: string; done: boolean }) {
+  return <div className="check-row"><span className={done ? 'done' : ''}>{done ? '✓' : '○'}</span><span className={done ? 'done' : ''}>{label}</span></div>
+}
+
 function SidebarItem({ title, meta, icon, tone, active, onClick }: { title: string; meta: string; icon: React.ReactNode; tone: string; active?: boolean; onClick?: () => void }) {
   return (
     <button className={`sidebar-item ${tone} ${active ? 'active' : ''}`} onClick={onClick}>
@@ -995,10 +1434,6 @@ function RailItem({ title, meta, icon, status, hot }: { title: string; meta: str
   return <article className={`studydesk-rail-item ${hot ? 'hot' : ''}`}><span className="rail-icon">{icon}</span><div><strong>{title}</strong><em>{meta}</em></div>{status && <small>{status}</small>}</article>
 }
 
-function ChecklistRow({ label, done }: { label: string; done: boolean }) {
-  return <div className="check-row">{done ? <CheckCircle2 size={15} /> : <Circle size={15} />}<span>{label}</span></div>
-}
-
 function QueueRow({ title, meta }: { title: string; meta: string }) {
   return <div className="queue-row"><strong>{title}</strong><span>{meta}</span><button><Play size={12} fill="currentColor" /></button></div>
 }
@@ -1011,49 +1446,7 @@ function AlertCard({ alert, onDismiss, onResolve }: { alert: Pick<AttentionAlert
   return <div className="studydesk-alert"><Target size={19} /><div><strong>{alert.title}</strong><span>{alert.reason}</span></div><button onClick={onResolve}>Resolve</button><button onClick={onDismiss}>Dismiss</button></div>
 }
 
-function DetailBlock({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
-  return <div className="detail-block"><span>{icon}</span><div><strong>{title}</strong><p>{body}</p></div></div>
-}
-
-function Flashcard({ question, answer }: { question: string; answer: string }) {
-  return <div className="flashcard-preview"><strong>Q</strong><p>{question}</p><strong>A</strong><p>{answer}</p></div>
-}
-
 function formatDue(value: number) {
   return new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
-const fallbackCourses: Course[] = [
-  { id: 'fallback-course-1', name: 'Research Methods', code: 'BUAD 5901', color: '#3478f6', createdAt: 0, updatedAt: 0, archived: false },
-  { id: 'fallback-course-2', name: 'Marketing Research', code: 'MR', color: '#38bdf8', createdAt: 0, updatedAt: 0, archived: false },
-  { id: 'fallback-course-3', name: 'Analytics', code: 'AN', color: '#22c55e', createdAt: 0, updatedAt: 0, archived: false },
-]
-
-const fallbackSyllabi = [
-  { id: 'fallback-syllabus-1', title: 'BUAD 5901 Syllabus' },
-]
-
-const fallbackCaptures: Capture[] = [
-  { id: 'fallback-capture-1', text: 'Screenshot 2025-04-21', source: 'manual', createdAt: 0, pinned: false },
-]
-
-const fallbackDeadlines: AcademicDeadline[] = [
-  { id: 'fallback-deadline-1', title: 'Research Reflection Draft', deadlineAt: new Date('2026-04-27T22:44:00-04:00').getTime(), type: 'assignment', sourceType: 'manual', confirmed: true, completed: false, createdAt: 0, updatedAt: 0 },
-  { id: 'fallback-deadline-2', title: 'Final Project Proposal', deadlineAt: new Date('2026-05-04T23:59:00-04:00').getTime(), type: 'assignment', sourceType: 'manual', confirmed: true, completed: false, createdAt: 0, updatedAt: 0 },
-  { id: 'fallback-deadline-3', title: 'Literature Review Outline', deadlineAt: new Date('2026-05-03T23:59:00-04:00').getTime(), type: 'assignment', sourceType: 'manual', confirmed: true, completed: false, createdAt: 0, updatedAt: 0 },
-]
-
-const fallbackStudy: StudyItem[] = [
-  { id: 'fallback-study-1', type: 'flashcard', front: 'Review Research Methods', back: '', reviewCount: 0, createdAt: 0, updatedAt: 0 },
-  { id: 'fallback-study-2', type: 'flashcard', front: 'Flashcards: Chapter 4', back: '', reviewCount: 0, createdAt: 0, updatedAt: 0 },
-  { id: 'fallback-study-3', type: 'question', front: 'Practice Quiz', back: '', reviewCount: 0, createdAt: 0, updatedAt: 0 },
-]
-
-const fallbackQuestions: ConfusionItem[] = [
-  { id: 'fallback-question-1', question: 'What is the difference between reliability and validity?', status: 'unresolved', createdAt: 0 },
-  { id: 'fallback-question-2', question: "How do I interpret Cronbach's alpha?", status: 'unresolved', createdAt: 0 },
-]
-
-const fallbackAlerts: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>[] = [
-  { id: 'fallback-alert-1', title: 'Focus session in progress', reason: '25:00 remaining', priority: 'medium' },
-]
