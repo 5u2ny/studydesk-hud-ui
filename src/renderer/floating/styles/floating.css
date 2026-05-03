@@ -779,17 +779,16 @@ body {
 
 .studydesk-notch-chip {
   min-width: 0;
-  max-width: 92px;
-  height: 20px;
+  max-width: 140px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 7px;
+  padding: 3px 8px;
   border-radius: 999px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: rgba(245, 245, 247, 0.70);
+  color: rgba(245, 245, 247, 0.78);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 10px;

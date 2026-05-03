@@ -43,6 +43,11 @@ export interface IPCContracts {
   'course:update': { req: { id: string; patch: Partial<Course> }; res: Course };
   'course:archive': { req: { id: string }; res: Course };
   'course:get': { req: { id: string }; res: Course | undefined };
+  'course:pickMaterialsFolder': { req: { courseId: string }; res: Course | null };
+  'course:clearMaterialsFolder': { req: { courseId: string }; res: Course };
+  'folder:readFile': { req: { path: string }; res: ArrayBuffer };
+  'folder:recordImport': { req: { courseId: string; record: any }; res: boolean };
+  'folder:rescan': { req: undefined; res: boolean };
   'assignment:list': { req: { courseId?: string; includeArchived?: boolean }; res: Assignment[] };
   'assignment:create': { req: Partial<Assignment> & { title: string }; res: Assignment };
   'assignment:update': { req: { id: string; patch: Partial<Assignment> }; res: Assignment };

@@ -68,6 +68,7 @@
     "lucide-react": "^1.11.0",
     "mailparser": "^3.7.1",
     "node-addon-api": "^8.7.0",
+    "pdfjs-dist": "^4.0.379",
     "tailwind-merge": "^3.5.0",
     "uiohook-napi": "^1.5.5"
   }

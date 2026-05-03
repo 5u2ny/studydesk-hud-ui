@@ -6,6 +6,7 @@ import { focusStore } from './services/store';
 import { captureService } from './services/capture/captureService';
 import { promptAccessibilityPermission } from './services/capture/permissionCheck';
 import { gmailService } from './services/gmail/gmailService';
+import { folderWatcherService } from './services/folders/folderWatcherService';
 
 process.on('uncaughtException',  (err)    => console.error('[main] Uncaught:', err.message));
 process.on('unhandledRejection', (reason) => console.error('[main] Unhandled rejection:', reason));
@@ -75,6 +76,12 @@ app.whenReady().then(async () => {
     windowManager.notesWindow?.webContents?.send('capture:new', capture);
   });
 
+  // ── Folder watcher: scan course-materials folders and emit detection events ─
+  folderWatcherService.start((payload) => {
+    // Send to notes window (where the import handler runs). Floating HUD doesn't need it.
+    windowManager.notesWindow?.webContents?.send('folder:fileDetected', payload);
+  });
+
   // ── Resume Gmail polling if connected ─────────────────────────────────
   if (settings.gmailEnabled) {
     gmailService.startPolling((items) => {
@@ -104,5 +111,6 @@ app.on('before-quit', () => {
   (app as any).isQuitting = true;
   captureService.stop();
   gmailService.stopPolling();
+  folderWatcherService.stop();
   windowManager.destroyAll();
 });

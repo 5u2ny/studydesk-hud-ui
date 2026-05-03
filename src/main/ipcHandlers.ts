@@ -1,4 +1,5 @@
-import { ipcMain, screen } from 'electron';
+import { ipcMain, screen, dialog } from 'electron';
+import { promises as fsp } from 'node:fs';
 import { IPC } from '../renderer/shared/types';
 import type { AppSettings } from '../renderer/shared/types';
 import { stateStore } from './stateStore';
@@ -24,6 +25,7 @@ import { confusionService } from './services/study/confusionService';
 import { criticalEmailService } from './services/gmail/criticalEmailService';
 import { todayService } from './services/today/todayService';
 import { attentionAlertService } from './services/attention/attentionAlertService';
+import { folderWatcherService } from './services/folders/folderWatcherService';
 import { randomUUID } from 'node:crypto';
 import { significantWords, calendarDay, hasWordOverlap } from './services/syllabus/dedup';
 
@@ -163,6 +165,57 @@ export function setupIPC() {
   ipcMain.handle('course:update', (_e, r) => coursesService.update(r.id, r.patch));
   ipcMain.handle('course:archive', (_e, r) => coursesService.archive(r.id));
   ipcMain.handle('course:get', (_e, r) => coursesService.get(r.id));
+
+  // ── Folder watcher: per-course Materials folder ──────────────────────
+  // Opens a folder picker, persists the chosen path on the course, and
+  // refreshes the watcher. Returns the updated course (or null if user cancelled).
+  ipcMain.handle('course:pickMaterialsFolder', async (_e, r: { courseId: string }) => {
+    const win = windowManager.notesWindow ?? windowManager.floatingWindow;
+    const result = await dialog.showOpenDialog(win!, {
+      title: 'Pick a Course Materials folder',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const folderPath = result.filePaths[0];
+    const updated = coursesService.update(r.courseId, { materialsFolderPath: folderPath });
+    folderWatcherService.refresh();
+    return updated;
+  });
+
+  // Detach the folder from the course and stop watching it. Imported notes
+  // are kept (the user can delete them manually).
+  ipcMain.handle('course:clearMaterialsFolder', (_e, r: { courseId: string }) => {
+    const updated = coursesService.update(r.courseId, { materialsFolderPath: undefined });
+    folderWatcherService.refresh();
+    return updated;
+  });
+
+  // Read a file's bytes for the renderer (used by folder watcher import flow).
+  // Restricted to files inside an active course's materials folder to prevent
+  // arbitrary filesystem reads from a compromised renderer.
+  ipcMain.handle('folder:readFile', async (_e, r: { path: string }) => {
+    const courses = coursesService.list();
+    const allowed = courses.some(c =>
+      c.materialsFolderPath && r.path.startsWith(c.materialsFolderPath)
+    );
+    if (!allowed) {
+      throw new Error('Path not inside any configured course materials folder');
+    }
+    const buf = await fsp.readFile(r.path);
+    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  });
+
+  // Renderer reports completion of an auto-import so the file isn't re-imported next scan.
+  ipcMain.handle('folder:recordImport', (_e, r: { courseId: string; record: any }) => {
+    folderWatcherService.recordImport(r.courseId, r.record);
+    return true;
+  });
+
+  // Manually trigger a folder rescan (e.g. after user edits a folder externally).
+  ipcMain.handle('folder:rescan', () => {
+    folderWatcherService.refresh();
+    return true;
+  });
 
   // ── Focus OS Student: Assignments ─────────────────────────────────────
   ipcMain.handle('assignment:list', (_e, r) => assignmentService.list(r));

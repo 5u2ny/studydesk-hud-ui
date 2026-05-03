@@ -232,9 +232,11 @@ export default function App() {
 
   const addDeadline = useCallback(async () => {
     if (!newDeadlineTitle.trim() || !newDeadlineDate) return
+    const parsed = new Date(newDeadlineDate)
+    if (Number.isNaN(parsed.getTime())) return
     await ipc.invoke('deadline:create', {
       title: newDeadlineTitle.trim(),
-      deadlineAt: new Date(newDeadlineDate).getTime(),
+      deadlineAt: parsed.getTime(),
       type: 'assignment',
       confirmed: true,
     })
@@ -452,7 +454,7 @@ export default function App() {
           <PopoverPanel title="Deadlines" subtitle="Due work, not calendar clutter">
             <section className="student-action-strip compact-form">
               <Input value={newDeadlineTitle} onChange={e => setNewDeadlineTitle(e.target.value)} placeholder="What is due?" />
-              <Input value={newDeadlineDate} onChange={e => setNewDeadlineDate(e.target.value)} type="datetime-local" />
+              <Input value={newDeadlineDate} onChange={e => setNewDeadlineDate(e.target.value)} onKeyDown={e => e.key === 'Enter' && addDeadline()} placeholder="Apr 20, 11:59 PM" />
               <Button variant="phase" onClick={addDeadline} disabled={!newDeadlineTitle.trim() || !newDeadlineDate}><Plus size={15} /> Add</Button>
             </section>
             <CompactList>
@@ -552,7 +554,6 @@ export default function App() {
                 <span>Full settings</span>
               </button>
             </div>
-            <p className="island-settings-note">Gmail and email-agent controls are outside the core StudyDesk flow.</p>
           </PopoverPanel>
         )
       default:

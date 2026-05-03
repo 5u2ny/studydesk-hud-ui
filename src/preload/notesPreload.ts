@@ -37,11 +37,18 @@ const INVOKE_CHANNELS = new Set([
   'attentionAlerts:snooze',
   'attentionAlerts:resolve',
   'capture:list',
+  // Course materials folder watcher
+  'course:pickMaterialsFolder',
+  'course:clearMaterialsFolder',
+  'folder:readFile',
+  'folder:recordImport',
+  'folder:rescan',
 ]);
 
 const SUBSCRIBE_CHANNELS = new Set([
   'notes:openNote',
   'capture:new',
+  'folder:fileDetected',
 ]);
 
 function invokeAllowed(channel: string, req?: unknown) {

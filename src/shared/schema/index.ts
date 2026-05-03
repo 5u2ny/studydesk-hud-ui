@@ -62,6 +62,15 @@ export interface EmailDigestItem {
   archived: boolean;
 }
 
+export interface MaterialsImportRecord {
+  path: string;        // absolute file path
+  mtime: number;       // file modification time (used for dedup)
+  size: number;        // file size in bytes
+  importedAt: number;  // when StudyDesk imported it
+  noteId?: string;     // resulting note (undefined if extraction failed)
+  error?: string;      // last error message if import failed
+}
+
 export interface Course {
   id: string;
   name: string;
@@ -72,6 +81,11 @@ export interface Course {
   location?: string;
   term?: string;
   color?: string;
+  // Local "Course Materials" folder watched for auto-import.
+  // When set, StudyDesk monitors the folder and imports new PDF/TXT/MD files
+  // as Notes (documentType: 'reading') linked to this course.
+  materialsFolderPath?: string;
+  materialsImportedFiles?: MaterialsImportRecord[];
   createdAt: number;
   updatedAt: number;
   archived: boolean;

@@ -128,8 +128,9 @@ export class WindowManager {
     const { workArea } = screen.getPrimaryDisplay();
 
     const win = new BrowserWindow({
-      width: 920, height: 680,
-      x: workArea.x + 40, y: workArea.y + 60,
+      width: 1440, height: 880,
+      minWidth: 1024, minHeight: 640,
+      x: workArea.x + 20, y: workArea.y + 30,
       title: 'StudyDesk Workspace',
       frame: true, transparent: false,
       resizable: true, movable: true,

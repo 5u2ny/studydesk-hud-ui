@@ -1,7 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import type { AcademicDeadline, Assignment, AttentionAlert, Capture, ChecklistItem, ClassSession, ConfusionItem, Course, Note, StudyItem } from '@schema'
 import { Editor } from './Editor'
+import { FileDropZone } from './components/FileDropZone'
+import {
+  ShellContainer,
+  IconRail,
+  LeftSidebar,
+  SidebarSection as ShellSidebarSection,
+  SidebarRow,
+  MainPanel,
+  RightPanel,
+  RightPanelCollapsedButton,
+} from './components/WorkspaceShell'
 import { ipc } from '@shared/ipc-client'
+import { cn } from '@shared/lib/utils'
 import {
   BarChart3,
   Bell,
@@ -12,6 +24,7 @@ import {
   Circle,
   ClipboardList,
   FileText,
+  Folder,
   GraduationCap,
   HelpCircle,
   Image,
@@ -195,6 +208,12 @@ export default function App() {
   const [status, setStatus] = useState('')
   const [quickAdd, setQuickAdd] = useState<QuickAddKind | null>(initialQuickAddKind)
   const [quickAddForm, setQuickAddForm] = useState<QuickAddForm>(initialQuickAddKind ? defaultQuickAddForm(initialQuickAddKind) : { title: '', detail: '', code: '', due: '' })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({})
+  const toggleSection = (key: string) => setExpandedSections(p => ({ ...p, [key]: !p[key] }))
+  // SurfSense-style right panel: collapsible Documents column with tabs
+  const [rightPanelOpen, setRightPanelOpen] = useState(true)
+  const [rightTab, setRightTab] = useState<'sources' | 'materials' | 'study'>('sources')
 
   async function refresh() {
     const [noteData, captureData, courseData, assignmentData, deadlineData, studyData, confusionData, alertData, classData] = await Promise.all([
@@ -223,13 +242,52 @@ export default function App() {
 
   useEffect(() => {
     refresh().catch(() => {})
+    // Trigger a rescan on workspace open so the watcher picks up files added while
+    // the notes window was closed. The watcher's start() also runs scans at app
+    // boot, but those events are lost if the notes window doesn't exist yet.
+    ipc.invoke('folder:rescan', undefined).catch(() => {})
     ipc.on('notes:openNote', (noteId: string) => {
       ipc.invoke<Note>('notes:get', { id: noteId }).then(note => note && setSelected(note)).catch(() => {})
     })
     ipc.on('capture:new', (capture: Capture) => {
       setCaptures(prev => prev.find(c => c.id === capture.id) ? prev : [capture, ...prev])
     })
-    return () => { ipc.off('notes:openNote'); ipc.off('capture:new') }
+    // Folder watcher: main process detects a new file → renderer reads, extracts, creates note
+    ipc.on('folder:fileDetected', async (payload: { courseId: string; path: string; name: string; ext: string; size: number; mtime: number }) => {
+      try {
+        const buffer = await ipc.invoke<ArrayBuffer>('folder:readFile', { path: payload.path })
+        const blob = new Blob([buffer])
+        const file = new File([blob], payload.name)
+        const { extractFileText } = await import('./lib/extractFileText')
+        const result = await extractFileText(file)
+        const trimmed = result.text.trim()
+        if (!trimmed) throw new Error('No extractable text')
+
+        const note = await ipc.invoke<Note>('notes:create', { title: result.title, content: tipTapDocument(trimmed) })
+        const updated = await ipc.invoke<Note>('notes:update', {
+          id: note.id,
+          patch: { documentType: 'reading', courseId: payload.courseId, tags: [`folder-import`] },
+        })
+        setNotes(prev => [updated, ...prev.filter(n => n.id !== updated.id)])
+        await ipc.invoke('folder:recordImport', {
+          courseId: payload.courseId,
+          record: { path: payload.path, mtime: payload.mtime, size: payload.size, importedAt: Date.now(), noteId: updated.id },
+        })
+        // Refresh the course in local state so the "N imported · auto-watching" counter updates
+        const refreshedCourses = await ipc.invoke<Course[]>('course:list', {})
+        setCourses(refreshedCourses)
+        setStatus(`Auto-imported "${updated.title}" from course folder.`)
+        setTimeout(() => setStatus(''), 3500)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Folder import failed'
+        await ipc.invoke('folder:recordImport', {
+          courseId: payload.courseId,
+          record: { path: payload.path, mtime: payload.mtime, size: payload.size, importedAt: Date.now(), error: message },
+        }).catch(() => {})
+        console.warn('[folder import]', payload.name, message)
+      }
+    })
+    return () => { ipc.off('notes:openNote'); ipc.off('capture:new'); ipc.off('folder:fileDetected') }
   }, [])
 
   // ── Derived filtered state ──────────────────────────────────────────────────
@@ -242,8 +300,15 @@ export default function App() {
   const byCourse = <T extends { courseId?: string }>(items: T[]) =>
     selectedCourseId ? items.filter(i => i.courseId === selectedCourseId) : items
 
-  const visibleNotes = byCourse(notes)
-  const visibleCaptures = byCourse(captures)
+  // Apply text search filter (matches title or content) across notes/captures
+  const matchesSearch = (text: string) =>
+    searchQuery.trim().length === 0 ||
+    text.toLowerCase().includes(searchQuery.trim().toLowerCase())
+
+  const visibleNotes = byCourse(notes).filter(n =>
+    matchesSearch(`${n.title} ${n.content}`)
+  )
+  const visibleCaptures = byCourse(captures).filter(c => matchesSearch(c.text))
   const visibleAssignments = byCourse(assignments)
   const visibleDeadlines = byCourse(deadlines)
   const visibleStudyItems = byCourse(studyItems)
@@ -289,6 +354,24 @@ export default function App() {
     const updated = await ipc.invoke<Note>('notes:update', { id: note.id, patch: { documentType: type, tags: [] } })
     setNotes(prev => [updated, ...prev])
     setSelected(updated)
+  }
+
+  // Used by the FileDropZone — creates a note from extracted file text and links it to a course.
+  async function handleCreateFromFile(input: { title: string; content: string; courseId?: string; documentType?: Note['documentType'] }): Promise<string> {
+    const note = await ipc.invoke<Note>('notes:create', { title: input.title || 'Imported file', content: tipTapDocument(input.content) })
+    const updated = await ipc.invoke<Note>('notes:update', {
+      id: note.id,
+      patch: {
+        documentType: input.documentType ?? 'reading',
+        courseId: input.courseId,
+        tags: [],
+      },
+    })
+    setNotes(prev => [updated, ...prev])
+    setSelected(updated)
+    setStatus(`Imported "${updated.title}".`)
+    setTimeout(() => setStatus(''), 3000)
+    return updated.id
   }
 
   function openQuickAdd(kind: QuickAddKind) {
@@ -404,194 +487,361 @@ export default function App() {
     { id: 'class', label: 'Class Mode', icon: <GraduationCap size={14} /> },
   ]
 
-  return (
-    <div className="studydesk-app">
-      <div className="studydesk-shell">
-        <header className="studydesk-topbar">
-          <div className="studydesk-window-controls" aria-hidden="true">
-            <span className="traffic red" />
-            <span className="traffic yellow" />
-            <span className="traffic green" />
-          </div>
-          <button className="studydesk-focus-pill">
-            <span className="focus-play"><Play size={18} fill="currentColor" /></span>
-            <strong>25:00</strong>
-            <span>Focus</span>
-            <ChevronRight size={15} />
-          </button>
-          <nav className="studydesk-ribbon" aria-label="Workspace tools">
-            {tools.map(tool => (
-              <button key={tool.id} className={activeTool === tool.id ? 'active' : ''} onClick={() => setActiveTool(tool.id)}>
-                {tool.icon}
-                <span>{tool.label}</span>
-              </button>
-            ))}
-          </nav>
-          <div className="studydesk-top-actions">
-            <button className="icon-pill"><Search size={17} /></button>
-            <button className="icon-pill has-badge"><Bell size={17} /></button>
-            <button className="icon-pill"><Settings size={17} /></button>
-          </div>
-        </header>
-        {status && <div className="studydesk-status">{status}<button onClick={() => setStatus('')}>Dismiss</button></div>}
-        {quickAdd && (
-          <QuickAddSheet
-            kind={quickAdd}
-            form={quickAddForm}
-            onChange={setQuickAddForm}
-            onClose={() => setQuickAdd(null)}
-            onSubmit={submitQuickAdd}
-          />
-        )}
-        <div className="studydesk-workspace">
-          <aside className="studydesk-library">
-            <WorkspaceSection title="Courses" onAdd={() => openQuickAdd('course')}>
-              <div className="studydesk-course-list">
-                <button className={!selectedCourseId ? 'active' : ''} onClick={() => setSelectedCourseId(null)}>
-                  <span className="section-icon course-token">All</span>
-                  <span><strong>All Courses</strong><em>{courses.length} total</em></span>
-                </button>
-                {courses.slice(0, 6).map(course => (
-                  <button key={course.id} className={selectedCourseId === course.id ? 'active' : ''} onClick={() => {
-                    setSelectedCourseId(course.id)
-                    const firstNote = notes.find(n => n.courseId === course.id)
-                    if (firstNote) setSelected(firstNote)
-                  }}>
-                    <span className="section-icon course-token">{course.code?.slice(0, 2) ?? 'CR'}</span>
-                    <span><strong>{course.code ?? course.name}</strong><em>{course.name}</em></span>
-                  </button>
-                ))}
-              </div>
-              {courses.length === 0 && (
-                <div className="empty-hint">
-                  <strong>No courses yet</strong>
-                  <span>Import a syllabus to create your first course, assignments, and deadlines.</span>
-                  <button className="outline-button" style={{ marginTop: 6 }} onClick={() => setActiveTool('syllabus')}>
-                    <FileText size={14} /> Import Syllabus
-                  </button>
-                </div>
-              )}
-            </WorkspaceSection>
-
-            <WorkspaceSection title="Syllabus Imports" onAdd={() => openQuickAdd('syllabus')}>
-              {syllabusNotes.length > 0
-                ? syllabusNotes.slice(0, 3).map(note => (
-                    <SidebarItem key={note.id} active={selected?.id === note.id} icon={<FileText size={16} />} title={note.title} meta={new Date(note.updatedAt).toLocaleDateString()} tone="teal" onClick={() => setSelected(note)} />
-                  ))
-                : <EmptyHint message="No syllabus imports" hint="Create a syllabus note to extract deadlines." />
-              }
-            </WorkspaceSection>
-
-            <WorkspaceSection title="Assignment Prompts" onAdd={() => openQuickAdd('assignment')}>
-              {assignmentNotes.length > 0
-                ? assignmentNotes.slice(0, 4).map(note => (
-                    <SidebarItem key={note.id} active={selected?.id === note.id} icon={<ClipboardList size={16} />} title={note.title || 'Untitled'} meta={new Date(note.updatedAt).toLocaleDateString()} tone="blue" onClick={() => setSelected(note)} />
-                  ))
-                : <EmptyHint message="No assignment prompts" hint="Add an assignment prompt to parse deliverables." />
-              }
-            </WorkspaceSection>
-
-            <WorkspaceSection title="Notes" onAdd={() => openQuickAdd('note')}>
-              {classNotes.length > 0
-                ? classNotes.slice(0, 3).map(note => (
-                    <SidebarItem key={note.id} active={selected?.id === note.id} icon={<FileText size={16} />} title={note.title || 'Untitled'} meta={new Date(note.updatedAt).toLocaleDateString()} tone="orange" onClick={() => setSelected(note)} />
-                  ))
-                : <EmptyHint message="No notes" hint="Create a note to get started." />
-              }
-            </WorkspaceSection>
-
-            <WorkspaceSection title="Captures" onAdd={() => openQuickAdd('question')}>
-              {visibleCaptures.length > 0
-                ? visibleCaptures.slice(0, 3).map(capture => (
-                    <SidebarItem key={capture.id} icon={<Image size={16} />} title={capture.text.slice(0, 34)} meta={new Date(capture.createdAt).toLocaleDateString()} tone="purple" />
-                  ))
-                : <EmptyHint message="No captures" hint="Highlight text in any app to capture it here." />
-              }
-            </WorkspaceSection>
-          </aside>
-
-          <main className="studydesk-main">
-            <WorkspaceSurface
-              activeTool={activeTool}
-              selected={selected}
-              selectedText={selectedText}
-              captures={visibleCaptures}
-              courses={courses}
-              deadlines={orderedVisibleDeadlines}
-              studyItems={visibleStudyItems}
-              confusions={unresolvedConfusions}
-              alerts={activeAlerts}
-              classSessions={visibleClassSessions}
-              currentCourse={currentCourse}
-              linkedAssignment={selectedLinkedAssignment}
-              onUpdate={handleUpdate}
-              onDelete={handleDelete}
-              onCreate={handleCreate}
-              onAssignmentSave={handleToolSave('Assignment checklist saved.')}
-              onSyllabusConfirm={handleToolSave('Syllabus deadlines imported.')}
-              onFlashcardSave={handleToolSave('Flashcards saved to study queue.')}
-              onQuizSave={(note: Note) => { setSelected(note); setStatus('Quiz draft created.'); refresh() }}
-              onStartClass={startClass}
-              onCompleteDeadline={completeDeadline}
-              onReviewStudyItem={reviewStudyItem}
-              onResolveConfusion={resolveConfusion}
-              onResolveAlert={resolveAlert}
-              onEndClassSession={endClassSession}
-              onRefresh={refresh}
-              onStatus={setStatus}
-            />
-          </main>
-
-          <aside className="studydesk-action-rail">
-            <Panel title="Upcoming Deadlines" action="View all">
-              {orderedVisibleDeadlines.length > 0
-                ? orderedVisibleDeadlines.slice(0, 4).map((d, index) => {
-                    const daysLeft = Math.max(0, Math.ceil((d.deadlineAt - Date.now()) / 86_400_000))
-                    return <RailItem key={d.id} icon={<CalendarDays size={15} />} title={d.title} meta={formatDue(d.deadlineAt)} status={daysLeft === 0 ? 'Due today' : `${daysLeft}d`} hot={index === 0} />
-                  })
-                : <EmptyHint message="No deadlines yet" hint="Add a deadline or import a syllabus to populate this rail." />
-              }
-            </Panel>
-            <Panel title="Assignment Checklist" badge={checklistTotal > 0 ? `${checklistPercent}%` : undefined}>
-              {activeAssignment && checklistTotal > 0
-                ? <>
-                    <div className="checklist-title"><strong>{activeAssignment.title}</strong></div>
-                    {activeAssignmentChecklistItems.slice(0, 6).map(item => (
-                      <ChecklistRow key={item.id} label={item.text} done={item.completed} />
-                    ))}
-                    {checklistTotal > 6 && <small className="checklist-more">+{checklistTotal - 6} more items</small>}
-                  </>
-                : <EmptyHint message="No active assignment" hint="Parse an assignment prompt to generate a checklist." />
-              }
-            </Panel>
-            <Panel title="Study Queue" badge={`${dueStudyItems.length}`}>
-              {dueStudyItems.length > 0
-                ? dueStudyItems.slice(0, 4).map(item => (
-                    <QueueRow key={item.id} title={item.front} meta={item.type} />
-                  ))
-                : <EmptyHint message="No items due" hint="Create flashcards from a document to populate the study queue." />
-              }
-            </Panel>
-            <Panel title="Unresolved Questions" badge={`${unresolvedConfusions.length}`}>
-              {unresolvedConfusions.length > 0
-                ? unresolvedConfusions.slice(0, 3).map(question => (
-                    <RailText key={question.id} title={question.question} meta={question.nextStep ?? question.status} />
-                  ))
-                : <EmptyHint message="No unresolved questions" hint="Questions from class sessions and captures appear here." />
-              }
-            </Panel>
-            <Panel title="Local Alerts" badge={`${activeAlerts.length}`}>
-              {activeAlerts.length > 0
-                ? activeAlerts.slice(0, 2).map(alert => (
-                    <AlertCard key={alert.id} alert={alert} onDismiss={() => ipc.invoke('attentionAlerts:dismiss', { id: alert.id }).then(refresh)} onResolve={() => resolveAlert(alert.id)} />
-                  ))
-                : <EmptyHint message="No alerts" hint="Alerts are generated from deadlines and study items." />
-              }
-            </Panel>
-          </aside>
+  // ── SurfSense-style three-column shell render ─────────────────────────────
+  const sourcesContent = (
+    <div className="space-y-4">
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Upcoming Deadlines</span>
+          <span className="text-[10px] text-white/40">{orderedVisibleDeadlines.length}</span>
         </div>
+        {orderedVisibleDeadlines.length > 0 ? (
+          <div className="space-y-1.5">
+            {orderedVisibleDeadlines.slice(0, 6).map(d => {
+              const daysLeft = Math.max(0, Math.ceil((d.deadlineAt - Date.now()) / 86_400_000))
+              const sourceNote = d.sourceId ? notes.find(n => n.id === d.sourceId) : undefined
+              return (
+                <button
+                  key={d.id}
+                  onClick={sourceNote ? () => setSelected(sourceNote) : undefined}
+                  className={cn(
+                    'w-full text-left px-2.5 py-2 rounded-lg border transition-colors group',
+                    daysLeft === 0
+                      ? 'bg-red-500/10 border-red-500/25 hover:bg-red-500/15'
+                      : 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]'
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <CalendarDays size={11} className={daysLeft === 0 ? 'text-red-300' : 'text-white/55'} />
+                    <span className="flex-1 min-w-0 truncate text-[12px] font-semibold text-white/90">{d.title}</span>
+                    <span className={cn(
+                      'shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase',
+                      daysLeft === 0 ? 'bg-red-500/20 text-red-200' : 'bg-white/[0.06] text-white/60'
+                    )}>{daysLeft === 0 ? 'TODAY' : `${daysLeft}d`}</span>
+                  </div>
+                  <div className="text-[10.5px] text-white/45">{formatDue(d.deadlineAt)}</div>
+                  {sourceNote && (
+                    <div className="mt-1 inline-flex items-center gap-1 text-[10px] text-white/45 group-hover:text-blue-300">
+                      <FileText size={9} /> {sourceNote.title.slice(0, 28)}
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-[11px] text-white/35 italic px-2 py-3">No deadlines yet</div>
+        )}
+      </div>
+
+      {activeAlerts.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Local Alerts</span>
+            <span className="text-[10px] text-white/40">{activeAlerts.length}</span>
+          </div>
+          <div className="space-y-1.5">
+            {activeAlerts.slice(0, 4).map(alert => (
+              <div key={alert.id} className="px-2.5 py-2 rounded-lg bg-amber-500/8 border border-amber-500/20">
+                <div className="flex items-start gap-2">
+                  <Target size={11} className="text-amber-300 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-semibold text-white/90 truncate">{alert.title}</div>
+                    <div className="text-[10.5px] text-white/55 mt-0.5">{alert.reason}</div>
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <button
+                        onClick={() => resolveAlert(alert.id)}
+                        className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 transition-colors"
+                      >Resolve</button>
+                      <button
+                        onClick={() => ipc.invoke('attentionAlerts:dismiss', { id: alert.id }).then(refresh)}
+                        className="px-2 py-0.5 rounded text-[10px] font-semibold text-white/55 hover:text-white/85 hover:bg-white/[0.06] transition-colors"
+                      >Dismiss</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  const materialsContent = (
+    <div className="space-y-3">
+      {selectedCourse ? (
+        <>
+          <MaterialsFolderRow
+            course={selectedCourse}
+            onPick={async () => {
+              const updated = await ipc.invoke<Course | null>('course:pickMaterialsFolder', { courseId: selectedCourse.id })
+              if (updated) {
+                setCourses(prev => prev.map(c => c.id === updated.id ? updated : c))
+                setStatus(`Watching ${updated.materialsFolderPath} for new files.`)
+                setTimeout(() => setStatus(''), 3500)
+              }
+            }}
+            onClear={async () => {
+              const updated = await ipc.invoke<Course>('course:clearMaterialsFolder', { courseId: selectedCourse.id })
+              setCourses(prev => prev.map(c => c.id === updated.id ? updated : c))
+            }}
+          />
+          {(selectedCourse.materialsImportedFiles ?? []).filter(r => r.noteId).length > 0 && (
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-white/50 mb-2">Imported files</div>
+              <div className="space-y-1">
+                {(selectedCourse.materialsImportedFiles ?? []).filter(r => r.noteId).slice(0, 20).map(r => {
+                  const note = notes.find(n => n.id === r.noteId)
+                  const fname = r.path.split('/').pop()
+                  return (
+                    <button
+                      key={r.path}
+                      onClick={note ? () => setSelected(note) : undefined}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/[0.04] text-left transition-colors"
+                    >
+                      <FileText size={11} className="text-white/45 shrink-0" />
+                      <span className="flex-1 min-w-0 truncate text-[11.5px] text-white/80">{fname}</span>
+                      <span className="text-[9px] text-white/35 shrink-0">{new Date(r.importedAt).toLocaleDateString()}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="text-[11px] text-white/40 italic px-2 py-3">
+          Pick a course in the rail to manage its materials folder.
+        </div>
+      )}
+    </div>
+  )
+
+  const studyContent = (
+    <div className="space-y-4">
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Study Queue</span>
+          <span className="text-[10px] text-white/40">{dueStudyItems.length}</span>
+        </div>
+        {dueStudyItems.length > 0 ? (
+          <div className="space-y-1.5">
+            {dueStudyItems.slice(0, 6).map(item => (
+              <div key={item.id} className="px-2.5 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                <div className="text-[12px] font-semibold text-white/90 truncate">{item.front}</div>
+                <div className="text-[10px] text-white/45 mt-0.5 capitalize">{item.type}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-[11px] text-white/35 italic px-2 py-3">No items due</div>
+        )}
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Unresolved Questions</span>
+          <span className="text-[10px] text-white/40">{unresolvedConfusions.length}</span>
+        </div>
+        {unresolvedConfusions.length > 0 ? (
+          <div className="space-y-1">
+            {unresolvedConfusions.slice(0, 5).map(q => (
+              <div key={q.id} className="px-2.5 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                <div className="text-[11.5px] text-white/85 leading-snug">{q.question}</div>
+                {q.nextStep && (
+                  <div className="text-[10px] text-blue-300 mt-1 capitalize">→ {q.nextStep.replace(/_/g, ' ')}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-[11px] text-white/35 italic px-2 py-3">No unresolved questions</div>
+        )}
       </div>
     </div>
+  )
+
+  return (
+    <ShellContainer>
+      {/* IconRail — narrow course avatars column (SurfSense IconRail) */}
+      <IconRail
+        courses={courses}
+        activeCourseId={selectedCourseId}
+        onSelectCourse={(id) => {
+          setSelectedCourseId(id)
+          if (id) {
+            const firstNote = notes.find(n => n.courseId === id)
+            if (firstNote) setSelected(firstNote)
+          }
+        }}
+        onAddCourse={() => openQuickAdd('course')}
+      />
+
+      {/* Left Sidebar — sources/notes (SurfSense Sidebar) */}
+      <LeftSidebar
+        searchSpaceLabel={currentCourse ? (currentCourse.code ?? currentCourse.name) : 'All Courses'}
+        onCollapse={() => {/* future: hide left sidebar */}}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      >
+        <ShellSidebarSection title="Syllabus Imports" icon={FileText} count={syllabusNotes.length} onAdd={() => openQuickAdd('syllabus')}>
+          {syllabusNotes.length > 0 ? syllabusNotes.map(note => {
+            const importedCount = deadlines.filter(d => d.sourceId === note.id).length
+              + assignments.filter(a => a.sourceId === note.id).length
+            return (
+              <SidebarRow
+                key={note.id}
+                title={note.title}
+                meta={new Date(note.updatedAt).toLocaleDateString()}
+                icon={<FileText size={13} />}
+                badge={importedCount > 0 ? { label: `${importedCount} imported`, tone: 'imported' } : undefined}
+                active={selected?.id === note.id}
+                onClick={() => setSelected(note)}
+              />
+            )
+          }) : <div className="px-2 py-2 text-[10.5px] text-white/35 italic">No syllabus imports</div>}
+        </ShellSidebarSection>
+
+        <ShellSidebarSection title="Assignment Prompts" icon={ClipboardList} count={assignmentNotes.length} onAdd={() => openQuickAdd('assignment')}>
+          {assignmentNotes.length > 0 ? assignmentNotes.map(note => {
+            const linked = assignments.find(a => a.sourceId === note.id || a.id === note.linkedAssignmentId)
+            return (
+              <SidebarRow
+                key={note.id}
+                title={note.title || 'Untitled'}
+                meta={new Date(note.updatedAt).toLocaleDateString()}
+                icon={<ClipboardList size={13} />}
+                badge={linked ? { label: 'parsed', tone: 'parsed' } : undefined}
+                active={selected?.id === note.id}
+                onClick={() => setSelected(note)}
+              />
+            )
+          }) : <div className="px-2 py-2 text-[10.5px] text-white/35 italic">No assignment prompts</div>}
+        </ShellSidebarSection>
+
+        <ShellSidebarSection title="Notes" icon={FileText} count={classNotes.length} onAdd={() => openQuickAdd('note')}>
+          {classNotes.length > 0 ? classNotes.map(note => (
+            <SidebarRow
+              key={note.id}
+              title={note.title || 'Untitled'}
+              meta={new Date(note.updatedAt).toLocaleDateString()}
+              icon={<FileText size={13} />}
+              active={selected?.id === note.id}
+              onClick={() => setSelected(note)}
+            />
+          )) : <div className="px-2 py-2 text-[10.5px] text-white/35 italic">No notes</div>}
+        </ShellSidebarSection>
+
+        <ShellSidebarSection title="Captures" icon={Image} count={visibleCaptures.length} defaultOpen={false}>
+          {visibleCaptures.length > 0 ? visibleCaptures.slice(0, 30).map(cap => (
+            <SidebarRow
+              key={cap.id}
+              title={cap.text.slice(0, 40)}
+              meta={new Date(cap.createdAt).toLocaleDateString()}
+              icon={<Image size={13} />}
+            />
+          )) : <div className="px-2 py-2 text-[10.5px] text-white/35 italic">No captures</div>}
+        </ShellSidebarSection>
+      </LeftSidebar>
+
+      {/* Main Panel — tabs + WorkspaceSurface (SurfSense MainContentPanel) */}
+      <MainPanel
+        tabs={tools}
+        activeTabId={activeTool}
+        onTabSelect={(id) => setActiveTool(id as WorkspaceTool)}
+        rightActions={
+          <>
+            <button className="w-8 h-8 rounded-md flex items-center justify-center text-white/55 hover:text-white hover:bg-white/[0.06] transition-colors relative" title="Notifications">
+              <Bell size={14} />
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-400" />
+            </button>
+            <button className="w-8 h-8 rounded-md flex items-center justify-center text-white/55 hover:text-white hover:bg-white/[0.06] transition-colors" title="Settings">
+              <Settings size={14} />
+            </button>
+            {!rightPanelOpen && (
+              <button
+                onClick={() => setRightPanelOpen(true)}
+                className="ml-1 px-2.5 h-8 rounded-md flex items-center gap-1.5 text-[11.5px] font-semibold text-white/70 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition-colors"
+              >
+                <PanelTop size={12} className="rotate-90" /> Sources
+              </button>
+            )}
+          </>
+        }
+      >
+        <WorkspaceSurface
+          activeTool={activeTool}
+          selected={selected}
+          selectedText={selectedText}
+          captures={visibleCaptures}
+          courses={courses}
+          deadlines={orderedVisibleDeadlines}
+          studyItems={visibleStudyItems}
+          confusions={unresolvedConfusions}
+          alerts={activeAlerts}
+          classSessions={visibleClassSessions}
+          currentCourse={currentCourse}
+          linkedAssignment={selectedLinkedAssignment}
+          onUpdate={handleUpdate}
+          onDelete={handleDelete}
+          onCreate={handleCreate}
+          onCreateFromFile={handleCreateFromFile}
+          onAssignmentSave={handleToolSave('Assignment checklist saved.')}
+          onSyllabusConfirm={handleToolSave('Syllabus deadlines imported.')}
+          onFlashcardSave={handleToolSave('Flashcards saved to study queue.')}
+          onQuizSave={(note: Note) => { setSelected(note); setStatus('Quiz draft created.'); refresh() }}
+          onStartClass={startClass}
+          onCompleteDeadline={completeDeadline}
+          onReviewStudyItem={reviewStudyItem}
+          onResolveConfusion={resolveConfusion}
+          onResolveAlert={resolveAlert}
+          onEndClassSession={endClassSession}
+          onRefresh={refresh}
+          onStatus={setStatus}
+        />
+      </MainPanel>
+
+      {/* Right Panel — Documents tabs (SurfSense RightPanel) */}
+      {rightPanelOpen ? (
+        <RightPanel
+          open={rightPanelOpen}
+          onClose={() => setRightPanelOpen(false)}
+          activeTab={rightTab}
+          onTabChange={setRightTab}
+          sourcesSlot={sourcesContent}
+          materialsSlot={materialsContent}
+          studySlot={studyContent}
+        />
+      ) : (
+        <RightPanelCollapsedButton
+          onClick={() => setRightPanelOpen(true)}
+          badge={orderedVisibleDeadlines.filter(d => Math.ceil((d.deadlineAt - Date.now()) / 86_400_000) <= 1).length}
+        />
+      )}
+
+      {/* Status banner overlay */}
+      {status && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-blue-500/15 border border-blue-500/30 backdrop-blur-md flex items-center gap-3 text-[12px] text-blue-100 shadow-lg">
+          {status}
+          <button
+            onClick={() => setStatus('')}
+            className="text-blue-200/70 hover:text-blue-100 font-bold"
+            aria-label="Dismiss"
+          >×</button>
+        </div>
+      )}
+
+      {/* QuickAdd overlay (form sheet for adding course/note/etc.) */}
+      {quickAdd && (
+        <QuickAddSheet
+          kind={quickAdd}
+          form={quickAddForm}
+          onChange={setQuickAddForm}
+          onClose={() => setQuickAdd(null)}
+          onSubmit={submitQuickAdd}
+        />
+      )}
+    </ShellContainer>
   )
 }
 
@@ -611,6 +861,7 @@ function WorkspaceSurface({
   onUpdate,
   onDelete,
   onCreate,
+  onCreateFromFile,
   onAssignmentSave,
   onSyllabusConfirm,
   onFlashcardSave,
@@ -639,6 +890,7 @@ function WorkspaceSurface({
   onUpdate: (id: string, patch: Partial<Note>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onCreate: (type?: Note['documentType']) => Promise<void>
+  onCreateFromFile: (input: { title: string; content: string; courseId?: string; documentType?: Note['documentType'] }) => Promise<string>
   onAssignmentSave: () => void
   onSyllabusConfirm: () => void
   onFlashcardSave: () => void
@@ -667,7 +919,7 @@ function WorkspaceSurface({
       return <ClassModeView currentCourse={currentCourse} captures={captures} confusions={confusions} classSessions={classSessions} onStartClass={onStartClass} onResolveConfusion={onResolveConfusion} onEndClassSession={onEndClassSession} onRefresh={onRefresh} />
     case 'today':
     default:
-      return <DocumentWorkspace selected={selected} selectedText={selectedText} captures={captures} currentCourse={currentCourse} linkedAssignment={linkedAssignment} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} onRefresh={onRefresh} />
+      return <DocumentWorkspace selected={selected} selectedText={selectedText} captures={captures} currentCourse={currentCourse} linkedAssignment={linkedAssignment} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} onCreateFromFile={onCreateFromFile} onRefresh={onRefresh} />
   }
 }
 
@@ -680,6 +932,7 @@ function DocumentWorkspace({
   onUpdate,
   onDelete,
   onCreate,
+  onCreateFromFile,
   onRefresh,
 }: {
   selected: Note | null
@@ -690,6 +943,7 @@ function DocumentWorkspace({
   onUpdate: (id: string, patch: Partial<Note>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onCreate: (type?: Note['documentType']) => Promise<void>
+  onCreateFromFile: (input: { title: string; content: string; courseId?: string; documentType?: Note['documentType'] }) => Promise<string>
   onRefresh: () => void
 }) {
   const [questionStatus, setQuestionStatus] = useState('')
@@ -740,7 +994,16 @@ function DocumentWorkspace({
       ) : (
         <div className="notes-empty">
           <p>No document selected</p>
-          <button className="notes-create-btn" onClick={() => onCreate('assignment_prompt')}>Create assignment prompt</button>
+          <FileDropZone
+            courseId={currentCourse?.id}
+            documentType="reading"
+            onCreate={onCreateFromFile}
+            onCreated={() => onRefresh()}
+          />
+          <div className="notes-empty-actions">
+            <button className="notes-create-btn" onClick={() => onCreate('assignment_prompt')}>Create assignment prompt</button>
+            <button className="notes-create-btn ghost" onClick={() => onCreate('note')}>New blank note</button>
+          </div>
         </div>
       )}
     </section>
@@ -1605,11 +1868,11 @@ function MetricCard({ label, value, detail, icon }: { label: string; value: numb
   )
 }
 
-function WorkspaceSection({ title, children, onAdd }: { title: string; children: React.ReactNode; onAdd?: () => void }) {
+function WorkspaceSection({ title, children, onAdd, count }: { title: string; children: React.ReactNode; onAdd?: () => void; count?: number }) {
   return (
     <section className="workspace-section">
       <header>
-        <h2>{title}</h2>
+        <h2>{title}{typeof count === 'number' && count > 0 && <span className="section-count">{count}</span>}</h2>
         {onAdd && <button onClick={onAdd}>+</button>}
       </header>
       {children}
@@ -1694,7 +1957,7 @@ function ChecklistRow({ label, done }: { label: string; done: boolean }) {
   return <div className="check-row"><span className={done ? 'done' : ''}>{done ? '✓' : '○'}</span><span className={done ? 'done' : ''}>{label}</span></div>
 }
 
-function SidebarItem({ title, meta, icon, tone, active, onClick }: { title: string; meta: string; icon: React.ReactNode; tone: string; active?: boolean; onClick?: () => void }) {
+function SidebarItem({ title, meta, icon, tone, active, onClick, badge }: { title: string; meta: string; icon: React.ReactNode; tone: string; active?: boolean; onClick?: () => void; badge?: { label: string; variant: 'imported' | 'parsed' | 'pending' } }) {
   return (
     <button className={`sidebar-item ${tone} ${active ? 'active' : ''}`} onClick={onClick}>
       <span className="section-icon">{icon}</span>
@@ -1702,6 +1965,7 @@ function SidebarItem({ title, meta, icon, tone, active, onClick }: { title: stri
         <strong>{title}</strong>
         <em>{meta}</em>
       </span>
+      {badge && <span className={`sidebar-badge sidebar-badge-${badge.variant}`}>{badge.label}</span>}
     </button>
   )
 }
@@ -1710,8 +1974,46 @@ function Panel({ title, children, action, badge }: { title: string; children: Re
   return <section className="studydesk-panel"><header><h2>{title}</h2>{action && <button>{action}</button>}{badge && <span>{badge}</span>}</header>{children}</section>
 }
 
-function RailItem({ title, meta, icon, status, hot }: { title: string; meta: string; icon: React.ReactNode; status?: string; hot?: boolean }) {
-  return <article className={`studydesk-rail-item ${hot ? 'hot' : ''}`}><span className="rail-icon">{icon}</span><div><strong>{title}</strong><em>{meta}</em></div>{status && <small>{status}</small>}</article>
+function MaterialsFolderRow({ course, onPick, onClear }: { course: Course; onPick: () => void; onClear: () => void }) {
+  const folder = course.materialsFolderPath
+  const importedCount = (course.materialsImportedFiles ?? []).filter(r => r.noteId).length
+  if (!folder) {
+    return (
+      <button className="materials-folder-row materials-folder-empty" onClick={onPick}>
+        <Folder size={13} />
+        <span>Watch a Materials folder…</span>
+      </button>
+    )
+  }
+  const display = folder.split('/').slice(-2).join('/')
+  return (
+    <div className="materials-folder-row">
+      <Folder size={13} />
+      <div className="materials-folder-info">
+        <strong>{display}</strong>
+        <em>{importedCount} imported · auto-watching</em>
+      </div>
+      <button className="materials-folder-clear" onClick={onClear} title="Stop watching this folder">×</button>
+    </div>
+  )
+}
+
+function RailItem({ title, meta, icon, status, hot, source, onSourceClick }: { title: string; meta: string; icon: React.ReactNode; status?: string; hot?: boolean; source?: string; onSourceClick?: () => void }) {
+  return (
+    <article className={`studydesk-rail-item ${hot ? 'hot' : ''}`}>
+      <span className="rail-icon">{icon}</span>
+      <div>
+        <strong>{title}</strong>
+        <em>{meta}</em>
+        {source && (
+          <button className="rail-source" onClick={onSourceClick} title={`Open source: ${source}`}>
+            <FileText size={10} /> {source}
+          </button>
+        )}
+      </div>
+      {status && <small>{status}</small>}
+    </article>
+  )
 }
 
 function QueueRow({ title, meta }: { title: string; meta: string }) {

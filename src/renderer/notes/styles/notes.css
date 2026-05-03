@@ -1,3 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Scrollbars: hidden by default, soft on hover (macOS-overlay feel) ────── */
+@layer utilities {
+  /* Fully hide scrollbar (used on horizontal tab bars, icon rails) */
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Thin, auto-fading scrollbar for content panes */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background 0.18s;
+  }
+  .scrollbar-thin:hover::-webkit-scrollbar-thumb,
+  .scrollbar-thin:focus-within::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.10);
+    background-clip: padding-box;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.20);
+    background-clip: padding-box;
+  }
+  .scrollbar-thin::-webkit-scrollbar-corner { background: transparent; }
+}
+
+/* Default scrollbars in the notes window — subtle, auto-fade */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.18s;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.20);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-corner { background: transparent; }
+
+
 :root {
   /* Liquid glass tokens */
   --glass-bg:          rgba(255,255,255,0.07);
@@ -154,6 +209,102 @@ body {
   transition: background 0.15s;
 }
 .notes-create-btn:hover { background: rgba(10,132,255,0.22); }
+.notes-create-btn.ghost { background: transparent; border-color: rgba(255,255,255,0.10); color: rgba(255,255,255,0.65); }
+.notes-create-btn.ghost:hover { background: rgba(255,255,255,0.04); color: #f5f5f7; }
+
+.notes-empty-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.file-drop-zone {
+  width: 100%;
+  max-width: 520px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(255, 255, 255, 0.75);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.file-drop-zone.drag-over {
+  border-color: rgba(40, 123, 255, 0.60);
+  background: rgba(40, 123, 255, 0.08);
+}
+
+.file-drop-zone.busy {
+  border-style: solid;
+  border-color: rgba(40, 123, 255, 0.40);
+}
+
+.file-drop-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #5fa1ff;
+}
+
+.file-drop-icon .spin {
+  animation: drop-spin 1s linear infinite;
+}
+
+@keyframes drop-spin {
+  to { transform: rotate(360deg); }
+}
+
+.file-drop-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-drop-body strong {
+  color: #f5f5f7;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.file-drop-body span {
+  color: rgba(255, 255, 255, 0.50);
+  font-size: 11px;
+}
+
+.file-drop-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  color: #ff7a7a;
+  font-size: 11px;
+}
+
+.file-drop-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(40, 123, 255, 0.15);
+  border: 1px solid rgba(40, 123, 255, 0.30);
+  color: #5fa1ff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.file-drop-button:hover {
+  background: rgba(40, 123, 255, 0.22);
+}
 
 .notes-editor-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
@@ -542,17 +693,17 @@ body {
 .studydesk-main .notes-clip-text { color: #334155; }
 .studydesk-main .notes-clip-source { color: #64748b; }
 
-/* StudyDesk Phase 2 locked architecture */
+/* StudyDesk Phase 2 locked architecture -- dark notch-matching */
 :root {
-  --sd-blue: #287bff;
-  --sd-cyan: #14a9c8;
-  --sd-text: #171b29;
-  --sd-muted: #70798d;
-  --sd-line: rgba(255, 255, 255, 0.66);
-  --sd-hairline: rgba(80, 101, 138, 0.18);
-  --sd-glass: rgba(244, 250, 255, 0.66);
-  --sd-glass-strong: rgba(255, 255, 255, 0.8);
-  --sd-shadow: 0 28px 80px rgba(18, 64, 141, 0.32), 0 10px 26px rgba(15, 23, 42, 0.13);
+  --sd-blue: #0a84ff;
+  --sd-cyan: #30d158;
+  --sd-text: #f5f5f7;
+  --sd-muted: rgba(255, 255, 255, 0.55);
+  --sd-line: rgba(255, 255, 255, 0.08);
+  --sd-hairline: rgba(255, 255, 255, 0.06);
+  --sd-glass: rgba(30, 30, 36, 0.85);
+  --sd-glass-strong: rgba(40, 40, 48, 0.92);
+  --sd-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 html,
@@ -563,10 +714,7 @@ body,
 }
 
 body {
-  background:
-    radial-gradient(circle at 18% 26%, rgba(255, 226, 188, 0.75), transparent 24%),
-    radial-gradient(circle at 72% 30%, rgba(223, 230, 255, 0.95), transparent 25%),
-    linear-gradient(135deg, #146ee9 0%, #79c8ee 39%, #ede7ff 64%, #283bb2 100%);
+  background: #0a0a10;
   color: var(--sd-text);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
 }
@@ -577,54 +725,34 @@ body {
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
-  place-items: center;
-  padding: clamp(18px, 2.4vw, 38px);
-  background: transparent;
+  place-items: stretch;
+  padding: 0;
+  background: #0a0a10;
   color: var(--sd-text);
 }
 
 .studydesk-shell {
-  width: min(1492px, calc(100vw - 54px));
-  height: min(884px, calc(100vh - 58px));
+  width: 100%;
+  height: 100%;
   display: grid;
-  grid-template-rows: 64px minmax(0, 1fr);
+  grid-template-rows: 52px minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.68);
-  border-radius: 24px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(229, 244, 255, 0.5)),
-    rgba(226, 242, 255, 0.56);
-  box-shadow: var(--sd-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(34px) saturate(1.55);
-  -webkit-backdrop-filter: blur(34px) saturate(1.55);
+  border: none;
+  border-radius: 0;
+  background: #0a0a10;
+  box-shadow: none;
 }
 
 .studydesk-topbar {
   display: grid;
-  grid-template-columns: 94px auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-  padding: 10px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 10px 16px 10px 80px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(14, 14, 20, 0.95);
 }
 
-.studydesk-window-controls {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding-left: 2px;
-}
-
-.traffic {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
-}
-
-.traffic.red { background: #ff5f57; }
-.traffic.yellow { background: #febc2e; }
-.traffic.green { background: #28c840; }
 
 .studydesk-focus-pill,
 .icon-pill,
@@ -634,22 +762,31 @@ body {
 .outline-button,
 .text-action,
 .studydesk-link-row {
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   color: var(--sd-text);
-  box-shadow: 0 7px 18px rgba(56, 92, 145, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(18px) saturate(1.4);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.studydesk-focus-pill:hover,
+.icon-pill:hover,
+.studydesk-ribbon button:hover,
+.outline-button:hover,
+.text-action:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .studydesk-focus-pill {
-  height: 44px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 14px 0 7px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.7);
+  gap: 8px;
+  padding: 0 12px 0 7px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 13px;
 }
 
 .focus-play {
@@ -729,8 +866,67 @@ body {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.58);
-  color: #415067;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.70);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.icon-pill:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: #f5f5f7;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.studydesk-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.studydesk-search:focus-within {
+  border-color: rgba(40, 123, 255, 0.50);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.studydesk-search input {
+  width: 180px;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: #f5f5f7;
+  font-size: 12px;
+}
+
+.studydesk-search input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.studydesk-search .search-clear {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studydesk-search .search-clear:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #f5f5f7;
 }
 
 .icon-pill.compact {
@@ -885,16 +1081,16 @@ body {
   gap: 11px;
   overflow: hidden auto;
   padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 17px;
-  background: rgba(244, 251, 255, 0.55);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--sd-text);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
+  box-shadow: none;
 }
 
 .workspace-section {
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(91, 110, 142, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .workspace-section:last-child {
@@ -911,11 +1107,119 @@ body {
 
 .workspace-section h2,
 .studydesk-panel h2 {
-  color: #71809a;
+  color: rgba(255, 255, 255, 0.50);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 1.1px;
   text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.70);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.section-expand {
+  width: 100%;
+  margin-top: 4px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.section-expand:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.materials-folder-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11px;
+  text-align: left;
+  cursor: default;
+}
+
+.materials-folder-row.materials-folder-empty {
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.50);
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+.materials-folder-row.materials-folder-empty:hover {
+  background: rgba(40, 123, 255, 0.06);
+  border-color: rgba(40, 123, 255, 0.30);
+  color: #5fa1ff;
+}
+
+.materials-folder-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.materials-folder-info strong {
+  color: #f5f5f7;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.materials-folder-info em {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.materials-folder-clear {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.40);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.materials-folder-clear:hover {
+  background: rgba(255, 60, 60, 0.15);
+  color: #ff7a7a;
 }
 
 .workspace-section header button,
@@ -925,10 +1229,10 @@ body {
   height: 24px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.6);
-  color: #62718a;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.60);
   font-weight: 800;
 }
 
@@ -954,7 +1258,7 @@ body {
   width: 100%;
   min-height: 44px;
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 6px 8px;
@@ -964,6 +1268,35 @@ body {
   color: var(--sd-text);
   text-align: left;
   cursor: pointer;
+}
+
+.sidebar-badge {
+  justify-self: end;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sidebar-badge-imported {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.sidebar-badge-parsed {
+  background: rgba(40, 123, 255, 0.15);
+  color: #5fa1ff;
+  border: 1px solid rgba(40, 123, 255, 0.25);
+}
+
+.sidebar-badge-pending {
+  background: rgba(255, 184, 77, 0.15);
+  color: #ffb84d;
+  border: 1px solid rgba(255, 184, 77, 0.25);
 }
 
 .studydesk-course-list button.active,
@@ -979,8 +1312,8 @@ body {
   place-items: center;
   border-radius: 9px;
   color: #287bff;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 5px 12px rgba(70, 96, 139, 0.13);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
 }
 
 .course-token {
@@ -990,16 +1323,16 @@ body {
   font-weight: 850;
 }
 
-.sidebar-item.teal .section-icon { color: #10a6a3; background: rgba(210, 253, 247, 0.8); }
-.sidebar-item.blue .section-icon { color: #1b78e8; background: rgba(213, 239, 255, 0.86); }
-.sidebar-item.orange .section-icon { color: #ff8b1f; background: rgba(255, 238, 211, 0.86); }
-.sidebar-item.purple .section-icon { color: #955aff; background: rgba(238, 226, 255, 0.86); }
+.sidebar-item.teal .section-icon { color: #10a6a3; background: rgba(16, 166, 163, 0.12); }
+.sidebar-item.blue .section-icon { color: #1b78e8; background: rgba(27, 120, 232, 0.12); }
+.sidebar-item.orange .section-icon { color: #ff8b1f; background: rgba(255, 139, 31, 0.12); }
+.sidebar-item.purple .section-icon { color: #955aff; background: rgba(149, 90, 255, 0.12); }
 
 .studydesk-course-list strong,
 .sidebar-item strong {
   display: block;
   overflow: hidden;
-  color: #1e2534;
+  color: #f5f5f7;
   font-size: 13px;
   font-weight: 780;
   text-overflow: ellipsis;
@@ -1011,7 +1344,7 @@ body {
   display: block;
   overflow: hidden;
   margin-top: 2px;
-  color: #6d778b;
+  color: rgba(255, 255, 255, 0.45);
   font-size: 12px;
   font-style: normal;
   text-overflow: ellipsis;
@@ -1027,7 +1360,7 @@ body {
   border: 0;
   background: transparent;
   box-shadow: none;
-  color: #6d778b;
+  color: rgba(255, 255, 255, 0.45);
   font-size: 12px;
 }
 
@@ -1044,10 +1377,10 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 17px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
 }
 
 .document-card-header,
@@ -1058,7 +1391,7 @@ body {
   justify-content: space-between;
   gap: 14px;
   padding: 0 16px;
-  border-bottom: 1px solid rgba(92, 111, 142, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .document-card-header > div:first-child,
@@ -1071,13 +1404,13 @@ body {
 
 .document-card-header span,
 .parser-tab {
-  color: #202637;
+  color: #f5f5f7;
   font-size: 13px;
   font-weight: 760;
 }
 
 .document-actions > span {
-  color: #7a8497;
+  color: rgba(255, 255, 255, 0.45);
   font-size: 11px;
 }
 
@@ -1088,7 +1421,7 @@ body {
   place-items: center;
   border: 0;
   background: transparent;
-  color: #647089;
+  color: rgba(255, 255, 255, 0.50);
   transform: rotate(180deg);
 }
 
@@ -1115,7 +1448,7 @@ body {
   align-items: center;
   gap: 9px;
   padding: 0 30px;
-  color: #70798d;
+  color: rgba(255, 255, 255, 0.45);
   font-size: 12px;
 }
 
@@ -1137,9 +1470,9 @@ body {
   height: 48px;
   margin: 0 16px;
   padding: 0 11px;
-  border: 1px solid rgba(116, 132, 160, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 11px;
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .studydesk-document-card .notes-tool-btn {
@@ -1147,7 +1480,7 @@ body {
   height: 28px;
   border: 0;
   background: transparent;
-  color: #4d586c;
+  color: rgba(255, 255, 255, 0.55);
   box-shadow: none;
   font-size: 13px;
 }
@@ -1159,7 +1492,7 @@ body {
 
 .studydesk-document-card .notes-title-input {
   padding: 32px 36px 8px;
-  color: #121827;
+  color: #f5f5f7;
   font-size: 28px;
   font-weight: 860;
 }
@@ -1171,14 +1504,14 @@ body {
 .studydesk-document-card .notes-content .ProseMirror {
   min-height: 400px;
   max-width: 730px;
-  color: #1e2434;
+  color: rgba(255, 255, 255, 0.85);
   font-size: 15px;
   line-height: 1.72;
 }
 
 .studydesk-document-card .notes-content .ProseMirror h2 {
   margin: 18px 0 7px;
-  color: #121827;
+  color: #f5f5f7;
   font-size: 20px;
 }
 
@@ -1196,14 +1529,14 @@ body {
   align-items: center;
   gap: 16px;
   padding: 0 26px;
-  border-top: 1px solid rgba(92, 111, 142, 0.12);
-  color: #7a8497;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.45);
   font-size: 12px;
 }
 
 .document-footer strong {
   margin-left: auto;
-  color: #253047;
+  color: rgba(255, 255, 255, 0.70);
 }
 
 .studydesk-action-rail {
@@ -1221,10 +1554,10 @@ body {
   flex-direction: column;
   gap: 9px;
   padding: 15px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 15px;
-  background: rgba(255, 255, 255, 0.54);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
 }
 
 .studydesk-panel header {
@@ -1236,7 +1569,7 @@ body {
   width: auto;
   padding: 0 8px;
   border-radius: 9px;
-  color: #0c89a5;
+  color: #14a9c8;
   font-size: 11px;
 }
 
@@ -1265,7 +1598,7 @@ body {
 .studydesk-alert strong {
   display: block;
   overflow: hidden;
-  color: #252b3a;
+  color: #f5f5f7;
   font-size: 12px;
   font-weight: 790;
   text-overflow: ellipsis;
@@ -1277,7 +1610,7 @@ body {
 .rail-text span {
   display: block;
   margin-top: 2px;
-  color: #70798d;
+  color: rgba(255, 255, 255, 0.45);
   font-size: 11px;
   font-style: normal;
 }
@@ -1286,10 +1619,32 @@ body {
   justify-self: end;
   padding: 4px 7px;
   border-radius: 9px;
-  background: rgba(255, 244, 228, 0.9);
+  background: rgba(255, 107, 45, 0.15);
   color: #ff6b2d;
   font-size: 10px;
   font-weight: 800;
+}
+
+.rail-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.rail-source:hover {
+  background: rgba(40, 123, 255, 0.10);
+  border-color: rgba(40, 123, 255, 0.40);
+  color: #5fa1ff;
 }
 
 .check-row,
@@ -1300,7 +1655,7 @@ body {
   align-items: center;
   gap: 8px;
   min-height: 24px;
-  color: #2c3343;
+  color: rgba(255, 255, 255, 0.75);
   font-size: 12px;
 }
 
@@ -1311,7 +1666,7 @@ body {
 
 .queue-row span {
   margin-left: auto;
-  color: #6d778b;
+  color: rgba(255, 255, 255, 0.40);
   font-size: 11px;
 }
 
@@ -1320,10 +1675,10 @@ body {
   height: 24px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.66);
-  color: #1b2d55;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.70);
 }
 
 .rail-text {
@@ -1346,16 +1701,16 @@ body {
 .studydesk-alert button {
   height: 28px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.06);
   color: #287bff;
   font-size: 11px;
   font-weight: 830;
 }
 
 .parser-card {
-  background: rgba(255, 255, 255, 0.63);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .parser-header {
@@ -1369,14 +1724,14 @@ body {
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  border: 1px solid rgba(112, 129, 157, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .parser-tab span {
   margin-left: auto;
-  color: #7a8497;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .parser-header .review-button {
@@ -1389,18 +1744,18 @@ body {
   align-items: end;
   gap: 30px;
   padding: 0 28px;
-  border-bottom: 1px solid rgba(92, 111, 142, 0.13);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .parser-tabs span {
   height: 34px;
-  color: #596376;
+  color: rgba(255, 255, 255, 0.50);
   font-size: 13px;
 }
 
 .parser-tabs span.active {
-  color: #088aa0;
-  border-bottom: 3px solid #10a9bf;
+  color: #14a9c8;
+  border-bottom: 3px solid #14a9c8;
   font-weight: 850;
 }
 
@@ -1422,11 +1777,11 @@ body {
 
 .parser-source,
 .parser-details {
-  border-right: 1px solid rgba(92, 111, 142, 0.16);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .eyebrow {
-  color: #8993a5;
+  color: rgba(255, 255, 255, 0.50);
   font-size: 13px;
 }
 
@@ -1436,14 +1791,14 @@ body {
 
 .parser-source h1 {
   margin: 28px 0 24px;
-  color: #151b2b;
+  color: #f5f5f7;
   font-size: 25px;
 }
 
 .parser-source p {
   max-width: 560px;
   margin: 0 0 18px;
-  color: #2a3142;
+  color: rgba(255, 255, 255, 0.80);
   font-size: 15px;
   line-height: 1.58;
 }
@@ -1479,7 +1834,7 @@ body {
   align-items: center;
   gap: 8px;
   margin-bottom: 22px;
-  color: #515b70;
+  color: rgba(255, 255, 255, 0.70);
   font-size: 16px;
 }
 
@@ -1487,8 +1842,8 @@ body {
   margin-left: auto;
   padding: 4px 10px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.6);
-  color: #6d778b;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.50);
   font-size: 13px;
 }
 
@@ -1504,13 +1859,13 @@ body {
 }
 
 .detail-block strong {
-  color: #252b3a;
+  color: #f5f5f7;
   font-size: 14px;
 }
 
 .detail-block p {
   margin-top: 5px;
-  color: #687387;
+  color: rgba(255, 255, 255, 0.55);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -1518,15 +1873,15 @@ body {
 .flashcard-preview {
   margin-bottom: 12px;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 11px;
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
 }
 
 .flashcard-preview:first-of-type {
-  background: rgba(255, 247, 219, 0.72);
-  border-color: rgba(255, 202, 88, 0.45);
+  background: rgba(255, 202, 88, 0.08);
+  border-color: rgba(255, 202, 88, 0.20);
 }
 
 .flashcard-preview strong {
@@ -1536,16 +1891,16 @@ body {
 
 .flashcard-preview p {
   margin: 4px 0 12px;
-  color: #343b4d;
+  color: rgba(255, 255, 255, 0.75);
   font-size: 13px;
   line-height: 1.38;
 }
 
 .outline-button {
   width: 100%;
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.06);
   color: #287bff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  box-shadow: none;
 }
 
 /* Phase 3 workspace surfaces */
@@ -1556,12 +1911,10 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 17px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(232, 247, 255, 0.48)),
-    rgba(255, 255, 255, 0.58);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
 }
 
 .phase3-header {
@@ -1571,12 +1924,12 @@ body {
   justify-content: space-between;
   gap: 24px;
   padding: 24px 28px;
-  border-bottom: 1px solid rgba(92, 111, 142, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .phase3-header h1 {
   margin: 4px 0 7px;
-  color: #151b2b;
+  color: #f5f5f7;
   font-size: 28px;
   font-weight: 880;
   letter-spacing: 0;
@@ -1584,7 +1937,7 @@ body {
 
 .phase3-header span,
 .phase3-footer {
-  color: #687387;
+  color: rgba(255, 255, 255, 0.55);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -1626,11 +1979,11 @@ body {
 .phase3-panel,
 .quiz-card,
 .study-card {
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  background: rgba(255, 255, 255, 0.54);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74), 0 10px 22px rgba(49, 83, 128, 0.08);
-  backdrop-filter: blur(18px) saturate(1.35);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .metric-card {
@@ -1650,12 +2003,12 @@ body {
   place-items: center;
   border-radius: 11px;
   color: #287bff;
-  background: rgba(216, 238, 255, 0.8);
+  background: rgba(40, 123, 255, 0.12);
 }
 
 .metric-card strong {
   display: block;
-  color: #141b2b;
+  color: #f5f5f7;
   font-size: 27px;
   line-height: 1;
 }
@@ -1663,14 +2016,14 @@ body {
 .metric-card em {
   display: block;
   margin-top: 3px;
-  color: #687387;
+  color: rgba(255, 255, 255, 0.50);
   font-size: 12px;
   font-style: normal;
 }
 
 .metric-card small {
   grid-column: 1 / -1;
-  color: #7a8497;
+  color: rgba(255, 255, 255, 0.40);
   font-size: 11px;
 }
 
@@ -1696,7 +2049,7 @@ body {
 
 .phase3-panel h2 {
   margin: 0 0 14px;
-  color: #6d7890;
+  color: rgba(255, 255, 255, 0.50);
   font-size: 11px;
   font-weight: 920;
   letter-spacing: 1.1px;
@@ -1711,7 +2064,7 @@ body {
   gap: 12px;
   min-height: 52px;
   padding: 10px 0;
-  border-bottom: 1px solid rgba(92, 111, 142, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .timeline-row {
@@ -1726,7 +2079,7 @@ body {
   place-items: center;
   border-radius: 10px;
   color: #287bff;
-  background: rgba(220, 241, 255, 0.75);
+  background: rgba(40, 123, 255, 0.12);
   font-size: 12px;
   font-weight: 900;
 }
@@ -1736,7 +2089,7 @@ body {
 .source-preview strong {
   display: block;
   overflow: hidden;
-  color: #202738;
+  color: #f5f5f7;
   font-size: 13px;
   font-weight: 820;
   text-overflow: ellipsis;
@@ -1748,7 +2101,7 @@ body {
 .source-preview span {
   display: block;
   margin-top: 3px;
-  color: #6d778b;
+  color: rgba(255, 255, 255, 0.45);
   font-size: 12px;
   font-style: normal;
 }
@@ -1756,7 +2109,7 @@ body {
 .timeline-row small {
   padding: 5px 9px;
   border-radius: 10px;
-  background: rgba(255, 240, 219, 0.88);
+  background: rgba(240, 107, 37, 0.15);
   color: #f06b25;
   font-size: 11px;
   font-weight: 850;
@@ -1772,11 +2125,11 @@ body {
   justify-content: center;
   gap: 6px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.66);
+  background: rgba(255, 255, 255, 0.06);
   color: #287bff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  box-shadow: none;
   font-size: 11px;
   font-weight: 850;
   cursor: pointer;
@@ -1826,7 +2179,7 @@ body {
 .quiz-card h2,
 .study-card h2 {
   margin: 12px 0 9px;
-  color: #151b2b;
+  color: #f5f5f7;
   font-size: 18px;
   line-height: 1.18;
 }
@@ -1835,7 +2188,7 @@ body {
 .study-card p,
 .capture-row p {
   margin: 0;
-  color: #30384b;
+  color: rgba(255, 255, 255, 0.75);
   font-size: 14px;
   line-height: 1.45;
 }
@@ -1848,7 +2201,7 @@ body {
   gap: 10px;
   margin-top: auto;
   padding-top: 14px;
-  color: #6d778b;
+  color: rgba(255, 255, 255, 0.45);
   font-size: 12px;
 }
 
@@ -1875,7 +2228,7 @@ body {
   display: flex;
   align-items: center;
   padding: 0 26px;
-  border-top: 1px solid rgba(92, 111, 142, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .source-preview {
@@ -1886,7 +2239,7 @@ body {
   gap: 10px;
   padding: 18px;
   border-radius: 13px;
-  background: rgba(255, 255, 255, 0.48);
+  background: rgba(255, 255, 255, 0.03);
   text-align: center;
 }
 
@@ -1918,8 +2271,8 @@ body {
 
 @media (max-width: 1180px) {
   .studydesk-shell {
-    width: calc(100vw - 24px);
-    height: calc(100vh - 24px);
+    width: 100%;
+    height: 100%;
   }
 
   .studydesk-workspace {
@@ -1947,7 +2300,7 @@ body {
 
 .syllabus-form h3 {
   margin: 0;
-  color: #6d7890;
+  color: rgba(255, 255, 255, 0.50);
   font-size: 11px;
   font-weight: 920;
   letter-spacing: 1.1px;
@@ -1960,8 +2313,8 @@ body {
   gap: 10px;
   padding: 6px 0;
   font-size: 13px;
-  color: #283040;
-  border-bottom: 1px solid rgba(92, 111, 142, 0.08);
+  color: rgba(255, 255, 255, 0.80);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .syllabus-form label input[type="checkbox"] {
@@ -1975,12 +2328,12 @@ body {
   flex: 1;
   min-width: 0;
   padding: 3px 8px;
-  border: 1px solid rgba(92, 111, 142, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.04);
   font: inherit;
   font-size: 13px;
-  color: #283040;
+  color: #f5f5f7;
   outline: none;
   transition: border-color 0.15s;
 }
@@ -1991,12 +2344,12 @@ body {
 
 .syllabus-inline-select {
   padding: 3px 8px;
-  border: 1px solid rgba(92, 111, 142, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.04);
   font: inherit;
   font-size: 12px;
-  color: #5c6f8e;
+  color: rgba(255, 255, 255, 0.65);
   outline: none;
 }
 
@@ -2008,13 +2361,13 @@ body {
   width: 100%;
   min-height: 200px;
   padding: 10px 12px;
-  border: 1px solid rgba(92, 111, 142, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.04);
   font-family: 'SF Mono', 'Menlo', monospace;
   font-size: 12px;
   line-height: 1.5;
-  color: #283040;
+  color: #f5f5f7;
   resize: vertical;
   outline: none;
   transition: border-color 0.15s;
@@ -2025,7 +2378,7 @@ body {
 }
 
 .syllabus-paste-area::placeholder {
-  color: #7a8497;
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .syllabus-onboarding-list {
@@ -2040,7 +2393,7 @@ body {
 .syllabus-onboarding-list li {
   padding: 8px 12px;
   border-radius: 8px;
-  background: rgba(76, 139, 245, 0.06);
+  background: rgba(76, 139, 245, 0.08);
   font-size: 13px;
-  color: #283040;
+  color: rgba(255, 255, 255, 0.80);
 }
