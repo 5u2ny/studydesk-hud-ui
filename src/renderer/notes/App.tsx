@@ -722,16 +722,20 @@ export default function App() {
         </ShellSidebarSection>
 
         <ShellSidebarSection title="Notes" icon={FileText} count={classNotes.length} onAdd={() => openQuickAdd('note')}>
-          {classNotes.length > 0 ? classNotes.map(note => (
-            <SidebarRow
-              key={note.id}
-              title={note.title || 'Untitled'}
-              meta={new Date(note.updatedAt).toLocaleDateString()}
-              icon={<FileText size={13} />}
-              active={selected?.id === note.id}
-              onClick={() => setSelected(note)}
-            />
-          )) : <div className="px-2 py-2 text-[10.5px] text-white/35 italic">No notes</div>}
+          {classNotes.length > 0 ? classNotes.map(note => {
+            const cardCount = studyItems.filter(s => s.sourceNoteId === note.id).length
+            return (
+              <SidebarRow
+                key={note.id}
+                title={note.title || 'Untitled'}
+                meta={new Date(note.updatedAt).toLocaleDateString()}
+                icon={<FileText size={13} />}
+                badge={cardCount > 0 ? { label: `${cardCount} card${cardCount === 1 ? '' : 's'}`, tone: 'parsed' } : undefined}
+                active={selected?.id === note.id}
+                onClick={() => setSelected(note)}
+              />
+            )
+          }) : <div className="px-2 py-2 text-[10.5px] text-white/35 italic">No notes</div>}
         </ShellSidebarSection>
 
         <ShellSidebarSection title="Captures" icon={Image} count={visibleCaptures.length} defaultOpen={false}>
@@ -1366,10 +1370,25 @@ function FlashcardsView({ selectedText, studyItems, courseId, onReviewStudyItem,
           <h1>Generate and review</h1>
           <span>{selectedText ? 'Extract flashcard candidates from the selected document.' : 'Select a document to generate flashcards.'}</span>
         </div>
-        {drafts.length === 0
-          ? <button className="review-button" onClick={generate} disabled={!selectedText}><ClipboardList size={15} /> Generate from document</button>
-          : <button className="review-button" onClick={handleSave}><ClipboardList size={15} /> Save flashcards ({drafts.length})</button>
-        }
+        <div className="flashcards-header-actions">
+          {drafts.length === 0 && (
+            <button
+              className="review-button"
+              onClick={async () => {
+                const r = await ipc.invoke<{ notesProcessed: number; totalCreated: number; totalUpdated: number; totalDeleted: number }>('study:syncAllNotes', {})
+                onStatus(`Sync: +${r.totalCreated} new, ${r.totalUpdated} updated, ${r.totalDeleted} removed across ${r.notesProcessed} note(s).`)
+                onSave()
+              }}
+              title="Re-derive flashcards from all notes (heading-based, level 3)"
+            >
+              <Sparkles size={15} /> Sync from notes
+            </button>
+          )}
+          {drafts.length === 0
+            ? <button className="review-button" onClick={generate} disabled={!selectedText}><ClipboardList size={15} /> Generate from document</button>
+            : <button className="review-button" onClick={handleSave}><ClipboardList size={15} /> Save flashcards ({drafts.length})</button>
+          }
+        </div>
       </header>
       {drafts.length > 0 && (
         <div className="flashcard-board">

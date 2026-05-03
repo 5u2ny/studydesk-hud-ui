@@ -26,6 +26,7 @@ import { criticalEmailService } from './services/gmail/criticalEmailService';
 import { todayService } from './services/today/todayService';
 import { attentionAlertService } from './services/attention/attentionAlertService';
 import { folderWatcherService } from './services/folders/folderWatcherService';
+import { flashcardSyncService } from './services/study/flashcardSyncService';
 import { randomUUID } from 'node:crypto';
 import { significantWords, calendarDay, hasWordOverlap } from './services/syllabus/dedup';
 
@@ -149,7 +150,17 @@ export function setupIPC() {
   ipcMain.handle('notes:list',   ()              => notesService.list());
   ipcMain.handle('notes:get',    (_e, r)         => notesService.get(r.id));
   ipcMain.handle('notes:create', (_e, r)         => notesService.create(r));
-  ipcMain.handle('notes:update', (_e, r)         => notesService.update(r.id, r.patch));
+  ipcMain.handle('notes:update', (_e, r) => {
+    const updated = notesService.update(r.id, r.patch);
+    // Auto-sync flashcards: any time a note's content changes, re-derive its
+    // heading-based cards. Stable cardKey preserves SM-2 review state.
+    if (r.patch?.content !== undefined) {
+      try { flashcardSyncService.syncNote(r.id); } catch (e: any) {
+        console.warn('[flashcardSync] syncNote failed:', e.message);
+      }
+    }
+    return updated;
+  });
   ipcMain.handle('notes:delete', (_e, r)         => notesService.delete(r.id));
 
   // ── Focus OS: Todos ───────────────────────────────────────────────────
@@ -349,6 +360,16 @@ export function setupIPC() {
   ipcMain.handle('study:update', (_e, r) => studyService.update(r.id, r.patch));
   ipcMain.handle('study:review', (_e, r) => studyService.review(r.id, r.difficulty));
   ipcMain.handle('study:delete', (_e, r) => studyService.delete(r.id));
+
+  // ── Flashcard sync (StudyMD-style note → cards) ──────────────────────
+  ipcMain.handle('study:syncNote',    (_e, r: { noteId: string; headingLevel?: number }) =>
+    flashcardSyncService.syncNote(r.noteId, r.headingLevel));
+  ipcMain.handle('study:syncAllNotes', (_e, r: { headingLevel?: number }) =>
+    flashcardSyncService.syncAllNotes(r?.headingLevel));
+  ipcMain.handle('study:cardsFromNote', (_e, r: { noteId: string }) =>
+    flashcardSyncService.cardsFromNote(r.noteId));
+  ipcMain.handle('study:syncCapture',  (_e, r: { capture: any; back?: string }) =>
+    flashcardSyncService.syncCapture(r.capture, { back: r.back }));
 
   // ── Focus OS Student: Confusions ──────────────────────────────────────
   ipcMain.handle('confusion:list', (_e, r) => confusionService.list(r));

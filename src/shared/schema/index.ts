@@ -171,6 +171,11 @@ export interface StudyItem {
   id: string;
   courseId?: string;
   sourceCaptureId?: string;
+  // For note-derived flashcards (StudyMD-style heading extraction):
+  // sourceNoteId points at the note, sourceCardKey is a stable hash of
+  // (front-text + position) so re-extraction preserves SM-2 review state.
+  sourceNoteId?: string;
+  sourceCardKey?: string;
   type: 'flashcard' | 'concept' | 'definition' | 'question' | 'confusion' | 'exam_hint';
   front: string;
   back?: string;

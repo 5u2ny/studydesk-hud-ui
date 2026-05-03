@@ -28,6 +28,11 @@ const INVOKE_CHANNELS = new Set([
   'study:update',
   'study:review',
   'study:delete',
+  // Flashcard sync (StudyMD-style note → cards)
+  'study:syncNote',
+  'study:syncAllNotes',
+  'study:cardsFromNote',
+  'study:syncCapture',
   'confusion:list',
   'confusion:create',
   'confusion:update',

@@ -48,6 +48,11 @@ export interface IPCContracts {
   'folder:readFile': { req: { path: string }; res: ArrayBuffer };
   'folder:recordImport': { req: { courseId: string; record: any }; res: boolean };
   'folder:rescan': { req: undefined; res: boolean };
+  // Flashcard sync (StudyMD-style note → cards)
+  'study:syncNote': { req: { noteId: string; headingLevel?: number }; res: { created: number; updated: number; deleted: number; cards: StudyItem[] } };
+  'study:syncAllNotes': { req: { headingLevel?: number }; res: { notesProcessed: number; totalCreated: number; totalUpdated: number; totalDeleted: number } };
+  'study:cardsFromNote': { req: { noteId: string }; res: StudyItem[] };
+  'study:syncCapture': { req: { capture: Capture; back?: string }; res: StudyItem };
   'assignment:list': { req: { courseId?: string; includeArchived?: boolean }; res: Assignment[] };
   'assignment:create': { req: Partial<Assignment> & { title: string }; res: Assignment };
   'assignment:update': { req: { id: string; patch: Partial<Assignment> }; res: Assignment };
