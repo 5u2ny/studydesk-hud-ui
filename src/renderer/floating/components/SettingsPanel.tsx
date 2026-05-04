@@ -8,7 +8,15 @@ import { Input } from '@shared/ui/input'
 import { cn } from '@shared/lib/utils'
 import {
   X, Timer, Bookmark, Cpu, Tag, Check, AlertCircle, ExternalLink, Plus, Trash2,
+  Music2,
 } from 'lucide-react'
+import {
+  isLofiEnabled,
+  setLofiEnabled,
+  getLofiVolume,
+  setLofiVolume,
+  currentLofiLabel,
+} from '../lofiPlayer'
 
 interface Props {
   settings: AppSettings
@@ -139,6 +147,7 @@ export function SettingsPanel({ settings, focusSettings, onSave, onClose }: Prop
                 <Toggle label="Sound alerts" checked={s.soundAlerts}
                   onChange={v => setS(p => ({ ...p, soundAlerts: v }))} />
               </div>
+              <LofiSection />
             </Section>
           </TabsContent>
 
@@ -330,5 +339,48 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
       </button>
       <span className="text-sm text-white/80 group-hover:text-white transition">{label}</span>
     </label>
+  )
+}
+
+/** Lo-fi focus-music block. Toggles auto-play during focus pomodoros
+ *  + a volume slider. State is persisted via localStorage by the
+ *  lofiPlayer module — no IPC roundtrip needed. */
+function LofiSection() {
+  const [enabled, setEnabled] = useState(() => isLofiEnabled())
+  const [volume, setVolume] = useState(() => Math.round(getLofiVolume() * 100))
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 mt-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Music2 size={14} className="text-white/70" />
+        <span className="text-sm font-semibold text-white/90">Focus music</span>
+        <span className="text-[11px] text-white/45 ml-auto">{currentLofiLabel()}</span>
+      </div>
+      <p className="text-[11.5px] text-white/55 mb-3 leading-snug">
+        Plays a lo-fi / chillout stream automatically when you start a focus
+        pomodoro. Pauses with the timer. Stays quiet during breaks so you
+        can actually rest.
+      </p>
+      <Toggle
+        label="Play lo-fi during focus sessions"
+        checked={enabled}
+        onChange={v => { setEnabled(v); setLofiEnabled(v) }}
+      />
+      <div className="mt-3">
+        <label className="block text-[11px] text-white/55 mb-1.5">Volume — {volume}%</label>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={volume}
+          onChange={e => {
+            const v = parseInt(e.target.value, 10)
+            setVolume(v)
+            setLofiVolume(v / 100)
+          }}
+          className="w-full accent-[rgba(var(--phase-r),var(--phase-g),var(--phase-b),0.85)]"
+        />
+      </div>
+    </div>
   )
 }

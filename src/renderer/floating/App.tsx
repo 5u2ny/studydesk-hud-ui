@@ -17,6 +17,12 @@ import type {
 } from '@schema'
 import { OnboardingScreen } from './components/OnboardingScreen'
 import { SettingsPanel } from './components/SettingsPanel'
+import {
+  startLofi,
+  pauseLofi,
+  isLofiEnabled,
+  setLofiEnabled,
+} from './lofiPlayer'
 import { Button } from '@shared/ui/button'
 import { Input } from '@shared/ui/input'
 import { cn } from '@shared/lib/utils'
@@ -197,9 +203,25 @@ export default function App() {
   const handleStartPause = useCallback(async () => {
     if (!state) return
     if (taskInput.trim() && taskInput !== state.currentTask) await window.focusAPI.setTask(taskInput.trim())
-    if (state.isRunning) await window.focusAPI.pauseTimer()
-    else await window.focusAPI.startTimer()
+    if (state.isRunning) {
+      await window.focusAPI.pauseTimer()
+      // Pair the timer with focus music — pause it when the timer
+      // pauses so the silence cues "you're not in a session right now".
+      pauseLofi()
+    } else {
+      await window.focusAPI.startTimer()
+      // Only auto-start lo-fi when entering a focus phase — break /
+      // long-break / rest phases stay quiet so you actually rest.
+      if (state.phase === 'focus') startLofi()
+    }
   }, [state, taskInput])
+
+  // If the timer ends naturally (or transitions to a non-focus phase),
+  // stop the music. We watch state.phase + state.isRunning for changes.
+  useEffect(() => {
+    if (!state) return
+    if (!state.isRunning || state.phase !== 'focus') pauseLofi()
+  }, [state?.isRunning, state?.phase])
 
   const togglePopover = useCallback((next: FeatureId) => {
     activeTrigger.current = next
