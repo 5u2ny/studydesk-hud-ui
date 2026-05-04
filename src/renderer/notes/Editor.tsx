@@ -8,6 +8,9 @@ import { parseContent } from './parseContent'
 import { createSlashCommandsExtension, type SlashItem } from './editor/slashCommands'
 import { SlashCommandPopup, type SlashCommandPopupHandle } from './editor/SlashCommandPopup'
 import { SourceQuote } from './editor/sourceQuoteNode'
+import { NoteLink, createNoteLinkSuggestionExtension } from './editor/noteLink'
+import { NoteLinkPopup, type NoteLinkPopupHandle } from './editor/NoteLinkPopup'
+import { ipc } from '@shared/ipc-client'
 export { parseContent }
 
 interface Props {
@@ -85,8 +88,71 @@ export function Editor({ note, captures, onUpdate }: Props) {
     }
   }), [])
 
+  // [[wiki-link]] suggestion extension — wired to a portal popup similar
+  // to the slash command. Items come from notes:list IPC at trigger time
+  // so the picker always sees the current note set without prop-threading.
+  const noteLinkExtension = useMemo(() => createNoteLinkSuggestionExtension({
+    currentNoteId: note.id,
+    getNotes: async () => {
+      try { return await ipc.invoke<Note[]>('notes:list', undefined as any) }
+      catch { return [] }
+    },
+    render: () => {
+      let container: HTMLDivElement | null = null
+      let root: Root | null = null
+      const popupRef = createRef<NoteLinkPopupHandle>()
+
+      function ensureContainer() {
+        if (container) return container
+        container = document.createElement('div')
+        container.className = 'note-link-popup-container'
+        document.body.appendChild(container)
+        root = createRoot(container)
+        return container
+      }
+      function position(rect: DOMRect | null) {
+        if (!container || !rect) return
+        const margin = 6
+        const w = 280
+        const h = 320
+        let top = rect.bottom + margin
+        let left = rect.left
+        if (top + h > window.innerHeight) top = rect.top - h - margin
+        if (left + w > window.innerWidth) left = window.innerWidth - w - margin
+        container.style.position = 'fixed'
+        container.style.top = `${top}px`
+        container.style.left = `${left}px`
+        container.style.zIndex = '9999'
+      }
+      function render(items: Note[], cmd: (n: Note) => void) {
+        if (!root) return
+        root.render(<NoteLinkPopup ref={popupRef} items={items} command={cmd} />)
+      }
+
+      return {
+        onStart: (props) => {
+          ensureContainer()
+          position(props.clientRect?.() ?? null)
+          render(props.items, (n) => props.command(n as any))
+        },
+        onUpdate: (props) => {
+          position(props.clientRect?.() ?? null)
+          render(props.items, (n) => props.command(n as any))
+        },
+        onKeyDown: (props) => {
+          if (props.event.key === 'Escape') return false
+          return popupRef.current?.onKeyDown(props.event) ?? false
+        },
+        onExit: () => {
+          if (root) { root.unmount(); root = null }
+          if (container) { container.remove(); container = null }
+        },
+      }
+    },
+  }), [note.id])
+
   const editor = useEditor({
-    extensions: [StarterKit, Underline, SourceQuote, slashExtension],
+    extensions: [StarterKit, Underline, SourceQuote, NoteLink, noteLinkExtension, slashExtension],
     content: parseContent(note.content),
     onUpdate: ({ editor }) => {
       const json = JSON.stringify(editor.getJSON())

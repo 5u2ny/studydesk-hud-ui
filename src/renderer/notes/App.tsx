@@ -253,6 +253,20 @@ export default function App() {
     ipc.on('notes:openNote', (noteId: string) => {
       ipc.invoke<Note>('notes:get', { id: noteId }).then(note => note && setSelected(note)).catch(() => {})
     })
+    // [[wiki-link]] click handler — TipTap dispatches this when a user
+    // clicks a rendered note-link in the editor. Use IPC for the lookup
+    // so this listener always sees the latest stored note (the closure
+    // would otherwise capture stale `notes` state).
+    const onNoteLinkClick = (e: Event) => {
+      const detail = (e as CustomEvent<{ noteId: string }>).detail
+      if (!detail?.noteId) return
+      ipc.invoke<Note>('notes:get', { id: detail.noteId }).then(target => {
+        if (!target) return
+        setSelected(target)
+        if (target.courseId) setSelectedCourseId(target.courseId)
+      }).catch(() => {})
+    }
+    window.addEventListener('studydesk:open-note-link', onNoteLinkClick)
     ipc.on('capture:new', (capture: Capture) => {
       setCaptures(prev => prev.find(c => c.id === capture.id) ? prev : [capture, ...prev])
     })
@@ -291,7 +305,10 @@ export default function App() {
         console.warn('[folder import]', payload.name, message)
       }
     })
-    return () => { ipc.off('notes:openNote'); ipc.off('capture:new'); ipc.off('folder:fileDetected') }
+    return () => {
+      ipc.off('notes:openNote'); ipc.off('capture:new'); ipc.off('folder:fileDetected')
+      window.removeEventListener('studydesk:open-note-link', onNoteLinkClick)
+    }
   }, [])
 
   // ── Derived filtered state ──────────────────────────────────────────────────
@@ -964,7 +981,7 @@ function WorkspaceSurface({
       return <RelationMapView notes={notes} courses={courses} deadlines={deadlines} assignments={assignments} studyItems={studyItems} captures={captures} courseId={currentCourse?.id} onSelectNote={onSelect} />
     case 'today':
     default:
-      return <DocumentWorkspace selected={selected} selectedText={selectedText} captures={captures} currentCourse={currentCourse} linkedAssignment={linkedAssignment} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} onCreateFromFile={onCreateFromFile} onRefresh={onRefresh} />
+      return <DocumentWorkspace selected={selected} selectedText={selectedText} captures={captures} notes={notes} currentCourse={currentCourse} linkedAssignment={linkedAssignment} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} onCreateFromFile={onCreateFromFile} onRefresh={onRefresh} onSelect={onSelect} />
   }
 }
 
@@ -972,6 +989,7 @@ function DocumentWorkspace({
   selected,
   selectedText,
   captures,
+  notes,
   currentCourse,
   linkedAssignment,
   onUpdate,
@@ -979,10 +997,12 @@ function DocumentWorkspace({
   onCreate,
   onCreateFromFile,
   onRefresh,
+  onSelect,
 }: {
   selected: Note | null
   selectedText: string
   captures: Capture[]
+  notes: Note[]
   currentCourse?: Course
   linkedAssignment?: Assignment
   onUpdate: (id: string, patch: Partial<Note>) => Promise<void>
@@ -990,8 +1010,23 @@ function DocumentWorkspace({
   onCreate: (type?: Note['documentType']) => Promise<void>
   onCreateFromFile: (input: { title: string; content: string; courseId?: string; documentType?: Note['documentType'] }) => Promise<string>
   onRefresh: () => void
+  onSelect: (n: Note) => void
 }) {
   const [questionStatus, setQuestionStatus] = useState('')
+
+  // Reverse-link discovery: scan all notes' content (TipTap JSON serialized
+  // as a string) for occurrences of the current note's id inside a noteLink
+  // mark. Cheap because we already have all notes in memory and the content
+  // is just a string. ~O(n) per render, acceptable for hundreds of notes.
+  const backlinks = useMemo(() => {
+    if (!selected) return []
+    const targetId = selected.id
+    return notes.filter(n => {
+      if (n.id === targetId) return false
+      // The TipTap JSON string contains `"noteId":"<id>"` for each link
+      return typeof n.content === 'string' && n.content.includes(`"noteId":"${targetId}"`)
+    })
+  }, [notes, selected])
 
   async function createQuestionFromDoc() {
     if (!selected || !selectedText) return
@@ -1032,6 +1067,25 @@ function DocumentWorkspace({
             captures={captures}
             onUpdate={(patch) => onUpdate(selected.id, patch)}
           />
+          {backlinks.length > 0 && (
+            <section className="document-backlinks" aria-label="Linked from these notes">
+              <header><span>Linked from</span><em>{backlinks.length}</em></header>
+              <ul>
+                {backlinks.slice(0, 8).map(n => (
+                  <li key={n.id}>
+                    <button onClick={() => onSelect(n)} className="document-backlink-item">
+                      <span className="dot" aria-hidden="true">•</span>
+                      <strong>{n.title || 'Untitled'}</strong>
+                      <em>{(n.documentType ?? 'note').replace('_', ' ')}</em>
+                    </button>
+                  </li>
+                ))}
+                {backlinks.length > 8 && (
+                  <li className="document-backlink-more">+{backlinks.length - 8} more</li>
+                )}
+              </ul>
+            </section>
+          )}
           <footer className="document-footer">
             <span>Last saved {new Date(selected.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
           </footer>
