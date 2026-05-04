@@ -641,8 +641,22 @@ body {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  /* Smooth expansion from center */
-  transition: width 0.28s var(--ease-out-expo);
+  /* Spring-eased width expansion (DynamicNotch port).
+     cubic-bezier(0.34, 1.56, 0.64, 1) ≈ SwiftUI .spring(response: 0.42,
+     dampingFraction: 0.7) — slight overshoot then settle, the
+     characteristic "snap" of Apple's Dynamic Island. */
+  transition: width 0.42s cubic-bezier(0.34, 1.56, 0.64, 1),
+              transform 80ms ease-out;
+  transform-origin: top center;
+  will-change: width, transform;
+}
+
+/* Anchor-top press feedback (DynamicNotch's NotchCustomScaleModifier).
+   Applied via React state on pointerdown — keeps the top edge glued to
+   the bezel while the shell scales 2.5% downward, like a physical button
+   reacting to touch. */
+.studydesk-notch-shell.is-pressed {
+  transform: scale(1.025);
 }
 
 /* Expanded shell (hover or popover): grow to full bar width */
@@ -983,12 +997,57 @@ body {
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.04),
     0 1px 2px rgba(0, 0, 0, 0.18),
     0 18px 48px rgba(0, 0, 0, 0.46);
-  animation: widgetEmerge 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  animation: widgetEmerge 320ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
 }
 
+/* Spring-y popover entry (DynamicNotch port). Slight overshoot at the
+   tail (cubic-bezier with y > 1) matches the iOS Dynamic Island feel. */
 @keyframes widgetEmerge {
-  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+/* Resize-aware blur on the inner content (the signature DynamicNotch
+   trick — see NotchAnimations.swift::ResizeAwareBlurModifier). The shell
+   animates width with a spring; while it's mid-flight the inner content
+   would otherwise pop in instantly and look glitchy. We blur the body
+   briefly, peaking at ~4px during the spring and resolving to 0 by the
+   time the spring settles. Masks the React render at the new width. */
+.studydesk-notch-popover .widget-body,
+.studydesk-notch-popover .widget-header {
+  animation: widgetContentReveal 380ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.studydesk-notch-popover .widget-body { animation-delay: 60ms; }
+.studydesk-notch-popover .widget-header { animation-delay: 30ms; }
+
+@keyframes widgetContentReveal {
+  from {
+    opacity: 0;
+    filter: blur(5px);
+  }
+  40% {
+    opacity: 0.7;
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* Reduced motion: skip the blur+overshoot, keep a simple fade. */
+@media (prefers-reduced-motion: reduce) {
+  .studydesk-notch-popover {
+    animation: widgetEmergeReduced 200ms ease-out both;
+  }
+  .studydesk-notch-popover .widget-body,
+  .studydesk-notch-popover .widget-header {
+    animation: none;
+  }
+  @keyframes widgetEmergeReduced {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
 }
 
 /* ── Widget chrome ─────────────────────────────────────────────────── */

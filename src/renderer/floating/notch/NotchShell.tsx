@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useCallback, useRef } from 'react'
 import { cn } from '@shared/lib/utils'
 import type { NotchFeatureId, NotchIdleChip } from './notchModel'
 import { NotchIdle } from './NotchIdle'
@@ -50,6 +50,32 @@ export function NotchShell({
 }) {
   const activeItem = activeFeature ? dockItems.find(item => item.id === activeFeature) : undefined
   const showWings = isHovering || !!activeFeature
+
+  // Press-and-hold feedback (DynamicNotch port — NotchCustomScaleModifier).
+  // While held with no movement, the shell scales 1.025 with transform-origin
+  // top center so the bezel-flush top edge stays put. Movement > 8px or
+  // pointer-leave cancels the press without firing the click.
+  const [isPressed, setIsPressed] = useState(false)
+  const pressOriginRef = useRef<{ x: number; y: number } | null>(null)
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    pressOriginRef.current = { x: e.clientX, y: e.clientY }
+    setIsPressed(true)
+  }, [])
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pressOriginRef.current) return
+    const dx = e.clientX - pressOriginRef.current.x
+    const dy = e.clientY - pressOriginRef.current.y
+    if (dx * dx + dy * dy > 64) {
+      // Movement tolerance: 8px (matches DynamicNotch's tapMovementTolerance).
+      setIsPressed(false)
+      pressOriginRef.current = null
+    }
+  }, [])
+  const handlePointerUp = useCallback(() => {
+    setIsPressed(false)
+    pressOriginRef.current = null
+  }, [])
+
   return (
     <div
       className={cn('studydesk-notch-root', activeItem && 'has-popover')}
@@ -64,6 +90,7 @@ export function NotchShell({
           captureFlash && 'capture-flash',
           showWings && 'is-hover-dock',
           activeFeature && 'is-expanded',
+          isPressed && 'is-pressed',
         )}
         data-active-feature={activeFeature ?? undefined}
         data-state={activeFeature ? 'activePopover' : 'idle'}
@@ -72,6 +99,10 @@ export function NotchShell({
         aria-label="Open StudyDesk"
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
       >
         {/* Left wing: timer -- visible on hover */}
         <div className="studydesk-notch-wing-left" onClick={onCapClick}>
