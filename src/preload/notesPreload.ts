@@ -52,6 +52,9 @@ const INVOKE_CHANNELS = new Set([
   'folder:rescan',
   'shell:openSourceFile',
   'notes:exportMarkdown',
+  'notes:exportPdf',
+  'notes:exportSlides',
+  'notes:publishStaticSite',
   'notes:listRevisions',
   'notes:restoreRevision',
 ]);

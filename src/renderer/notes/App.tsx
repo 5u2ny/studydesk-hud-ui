@@ -661,6 +661,20 @@ export default function App() {
     </div>
   )
 
+  // Static-site publish button (used in materials panel)
+  const publishStaticSite = async () => {
+    try {
+      const result = await ipc.invoke<{ written: boolean; outDir: string; noteCount: number } | null>(
+        'notes:publishStaticSite',
+        { courseId: selectedCourseId ?? undefined }
+      )
+      if (result) {
+        setStatus(`Published ${result.noteCount} note${result.noteCount === 1 ? '' : 's'} to ${result.outDir}`)
+        setTimeout(() => setStatus(''), 4500)
+      }
+    } catch (err) { console.warn('[publishStaticSite]', err) }
+  }
+
   const materialsContent = (
     <div className="space-y-3">
       {selectedCourse ? (
@@ -702,6 +716,19 @@ export default function App() {
               </div>
             </div>
           )}
+          {/* Static-site publish (MkDocs port) */}
+          <div className="pt-3 border-t border-white/[0.06]">
+            <button
+              onClick={publishStaticSite}
+              className="w-full px-3 py-2 rounded-md bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[11.5px] text-white/80 hover:text-white transition-colors"
+              title="Generate a browsable static HTML site from this course's notes"
+            >
+              📦 Publish as static site…
+            </button>
+            <p className="text-[10px] text-white/35 mt-1 leading-snug">
+              Renders this course's notes as a folder of HTML pages with built-in search.
+            </p>
+          </div>
         </>
       ) : (
         <div className="text-[11px] text-white/40 italic px-2 py-3">
@@ -1358,6 +1385,26 @@ function DocumentWorkspace({
               title="Export this note as a .md file"
             >
               Export .md
+            </button>
+            <button
+              onClick={async () => {
+                if (!selected) return
+                try { await ipc.invoke('notes:exportPdf', { noteId: selected.id }) }
+                catch (err) { console.warn('[exportPdf]', err) }
+              }}
+              title="Export this note as a PDF file"
+            >
+              Export PDF
+            </button>
+            <button
+              onClick={async () => {
+                if (!selected) return
+                try { await ipc.invoke('notes:exportSlides', { noteId: selected.id }) }
+                catch (err) { console.warn('[exportSlides]', err) }
+              }}
+              title="Export this note as a reveal.js slide deck (split on horizontal rules)"
+            >
+              Slides
             </button>
             <button onClick={() => setShowRevisions(true)} title="View revision history (last 50 saves)">
               History

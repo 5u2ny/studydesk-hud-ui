@@ -27,6 +27,9 @@ import { todayService } from './services/today/todayService';
 import { attentionAlertService } from './services/attention/attentionAlertService';
 import { folderWatcherService } from './services/folders/folderWatcherService';
 import { revisionsService } from './services/revisions/revisionsService';
+import { exportNoteToPdf } from './services/export/pdfExport';
+import { buildRevealHtml } from './services/export/slideExport';
+import { publishStaticSite } from './services/export/staticSiteExport';
 import { flashcardSyncService } from './services/study/flashcardSyncService';
 import { buildICS, defaultFilename } from './services/calendar/icsExport';
 import { randomUUID } from 'node:crypto';
@@ -263,6 +266,67 @@ export function setupIPC() {
   // as folder:readFile: only files inside a configured course materials
   // folder are allowed, so a malicious renderer can't tell the OS to open
   // arbitrary files (e.g. ~/.ssh/id_rsa).
+  // Export a single note to PDF (mdne-electron port). Renders via an
+  // offscreen BrowserWindow + webContents.printToPDF.
+  ipcMain.handle('notes:exportPdf', async (_e, r: { noteId: string }) => {
+    const note = notesService.get(r.noteId);
+    if (!note) throw new Error('Note not found');
+    const win = windowManager.notesWindow ?? windowManager.floatingWindow;
+    const safeBase = (note.title || 'note').replace(/[^a-zA-Z0-9_\-\.]/g, '_').replace(/_+/g, '_');
+    const result = await dialog.showSaveDialog(win!, {
+      title: 'Export note as PDF',
+      defaultPath: `${safeBase}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    let doc: any;
+    try { doc = JSON.parse(note.content); } catch { doc = { type: 'doc', content: [] }; }
+    const out = await exportNoteToPdf({ title: note.title || 'note', doc, outPath: result.filePath });
+    return { written: true, path: out.path, bytes: out.bytes };
+  });
+
+  // Publish a folder as a browsable static site (MkDocs port).
+  // Generates one HTML file per note + an index page + JSON search index
+  // + a tiny in-page search.js. No third-party dep — substring scoring
+  // is fast enough for a few hundred notes.
+  ipcMain.handle('notes:publishStaticSite', async (_e, r: { courseId?: string }) => {
+    const win = windowManager.notesWindow ?? windowManager.floatingWindow;
+    const result = await dialog.showOpenDialog(win!, {
+      title: 'Pick an output folder for the static site',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const outDir = result.filePaths[0];
+    const out = await publishStaticSite({
+      notes: notesService.list(),
+      courses: coursesService.list(),
+      courseId: r?.courseId,
+      outDir,
+    });
+    return { written: true, ...out };
+  });
+
+  // Export a note as a reveal.js slide deck (CodiMD slide-mode port).
+  // Splits on horizontal-rule nodes; output is a single HTML file
+  // using reveal.js from a CDN.
+  ipcMain.handle('notes:exportSlides', async (_e, r: { noteId: string }) => {
+    const note = notesService.get(r.noteId);
+    if (!note) throw new Error('Note not found');
+    const win = windowManager.notesWindow ?? windowManager.floatingWindow;
+    const safeBase = (note.title || 'slides').replace(/[^a-zA-Z0-9_\-\.]/g, '_').replace(/_+/g, '_');
+    const result = await dialog.showSaveDialog(win!, {
+      title: 'Export note as slide deck',
+      defaultPath: `${safeBase}-slides.html`,
+      filters: [{ name: 'HTML', extensions: ['html'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    let doc: any;
+    try { doc = JSON.parse(note.content); } catch { doc = { type: 'doc', content: [] }; }
+    const html = buildRevealHtml({ title: note.title || 'Slides', doc });
+    await fsp.writeFile(result.filePath, html, 'utf-8');
+    return { written: true, path: result.filePath, bytes: Buffer.byteLength(html, 'utf-8') };
+  });
+
   // Export a note to a .md file. Renderer serializes the TipTap JSON
   // to markdown and passes it as a string; main shows a save dialog and
   // writes the file. No path restriction here since the user explicitly
