@@ -1,4 +1,4 @@
-import { ipcMain, screen, dialog } from 'electron';
+import { ipcMain, screen, dialog, shell } from 'electron';
 import { promises as fsp } from 'node:fs';
 import { IPC } from '../renderer/shared/types';
 import type { AppSettings } from '../renderer/shared/types';
@@ -228,6 +228,25 @@ export function setupIPC() {
   // Renderer reports completion of an auto-import so the file isn't re-imported next scan.
   ipcMain.handle('folder:recordImport', (_e, r: { courseId: string; record: any }) => {
     folderWatcherService.recordImport(r.courseId, r.record);
+    return true;
+  });
+
+  // Open a source file (PDF / TXT / MD) in the user's default application.
+  // Used by the SourceQuote TipTap node to "jump to source" — click a quote
+  // in a note to open the original document. Same path-restriction policy
+  // as folder:readFile: only files inside a configured course materials
+  // folder are allowed, so a malicious renderer can't tell the OS to open
+  // arbitrary files (e.g. ~/.ssh/id_rsa).
+  ipcMain.handle('shell:openSourceFile', async (_e, r: { path: string }) => {
+    const courses = coursesService.list();
+    const allowed = courses.some(c =>
+      c.materialsFolderPath && r.path.startsWith(c.materialsFolderPath)
+    );
+    if (!allowed) {
+      throw new Error('Path not inside any configured course materials folder');
+    }
+    const errMsg = await shell.openPath(r.path);
+    if (errMsg) throw new Error(errMsg);
     return true;
   });
 

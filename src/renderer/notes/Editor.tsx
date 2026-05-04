@@ -7,6 +7,7 @@ import type { Note, Capture } from '@schema'
 import { parseContent } from './parseContent'
 import { createSlashCommandsExtension, type SlashItem } from './editor/slashCommands'
 import { SlashCommandPopup, type SlashCommandPopupHandle } from './editor/SlashCommandPopup'
+import { SourceQuote } from './editor/sourceQuoteNode'
 export { parseContent }
 
 interface Props {
@@ -85,7 +86,7 @@ export function Editor({ note, captures, onUpdate }: Props) {
   }), [])
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline, slashExtension],
+    extensions: [StarterKit, Underline, SourceQuote, slashExtension],
     content: parseContent(note.content),
     onUpdate: ({ editor }) => {
       const json = JSON.stringify(editor.getJSON())

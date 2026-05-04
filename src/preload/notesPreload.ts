@@ -50,6 +50,7 @@ const INVOKE_CHANNELS = new Set([
   'folder:readFile',
   'folder:recordImport',
   'folder:rescan',
+  'shell:openSourceFile',
 ]);
 
 const SUBSCRIBE_CHANNELS = new Set([

@@ -17,7 +17,7 @@ import {
   Heading1, Heading2, Heading3,
   List, ListOrdered, ListChecks,
   Quote, Code, Minus, Type,
-  Sparkles, AlertCircle, Info,
+  Sparkles, AlertCircle, Info, BookMarked,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -201,6 +201,48 @@ export const SLASH_ITEMS: SlashItem[] = [
     command: ({ editor, range }) => {
       // Inserts an H2 — flashcardSyncService picks up H2s as card fronts
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run()
+    },
+  },
+  {
+    id: 'source-quote',
+    title: 'Source quote',
+    description: 'Quote linked to the original PDF — click to open',
+    icon: BookMarked,
+    category: 'advanced',
+    keywords: ['quote', 'source', 'cite', 'citation', 'reference'],
+    command: async ({ editor, range }) => {
+      // Inspired by insights-lm-public's citation-jump UX. We auto-link
+      // to the most-recently-imported course material so the user can
+      // start typing immediately; they can pick a different source by
+      // editing the data attributes (or via a future picker UI).
+      const { ipc } = await import('@shared/ipc-client')
+      const courses = await ipc.invoke('course:list', {}).catch(() => [] as any[])
+      let pick: { path: string; title: string; courseId: string } | null = null
+      let bestTime = 0
+      for (const c of (courses as any[])) {
+        for (const f of (c.materialsImportedFiles ?? [])) {
+          if (f.path && f.importedAt > bestTime) {
+            bestTime = f.importedAt
+            pick = {
+              path: f.path,
+              title: (f.path.split('/').pop() ?? 'source') as string,
+              courseId: c.id,
+            }
+          }
+        }
+      }
+      const meta = pick ?? { path: '', title: '(no source linked)', courseId: '' }
+      editor.chain()
+        .focus()
+        .deleteRange(range)
+        .insertSourceQuote({
+          sourcePath: meta.path,
+          sourceTitle: meta.title,
+          courseId: meta.courseId || undefined,
+          quotedAt: Date.now(),
+          quote: 'Type the quoted passage…',
+        })
+        .run()
     },
   },
 ]

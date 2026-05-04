@@ -306,6 +306,46 @@ body {
   background: rgba(40, 123, 255, 0.22);
 }
 
+/* ── SourceQuote node (insights-lm-public-inspired) ────────────────────── */
+.ProseMirror aside.source-quote {
+  position: relative;
+  margin: 16px 0;
+  padding: 14px 18px 32px 16px;
+  border-left: 3px solid rgba(95, 161, 255, 0.6);
+  border-radius: 8px;
+  background: rgba(40, 123, 255, 0.06);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 14px;
+  line-height: 1.55;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ProseMirror aside.source-quote:hover {
+  background: rgba(40, 123, 255, 0.10);
+  border-left-color: rgba(95, 161, 255, 0.85);
+}
+/* Source-title footer pulled from data-source-title via CSS */
+.ProseMirror aside.source-quote::after {
+  content: "📄 " attr(data-source-title);
+  position: absolute;
+  bottom: 6px;
+  left: 16px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(95, 161, 255, 0.85);
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  text-decoration-color: rgba(95, 161, 255, 0.40);
+  text-underline-offset: 2px;
+  pointer-events: none;
+}
+/* When no source is linked, dim the footer and use a different icon */
+.ProseMirror aside.source-quote[data-source-path=""]::after {
+  content: "🔗 Link a source — edit attributes";
+  color: rgba(255, 184, 77, 0.75);
+  text-decoration: none;
+}
+
 /* ── Slash command popup (AppFlowy-inspired) ───────────────────────────── */
 .slash-popup {
   width: 280px;
