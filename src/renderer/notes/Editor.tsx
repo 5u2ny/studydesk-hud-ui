@@ -13,6 +13,7 @@ import { NoteLinkPopup, type NoteLinkPopupHandle } from './editor/NoteLinkPopup'
 import { Footnote } from './editor/footnoteNode'
 import { InlineComment } from './editor/inlineCommentMark'
 import { WritingModes } from './editor/writingModes'
+import { ResizableImage, fileToDataUrl } from './editor/imageResize'
 import { TocDropdown } from './components/TocDropdown'
 import { ipc } from '@shared/ipc-client'
 export { parseContent }
@@ -156,7 +157,7 @@ export function Editor({ note, captures, onUpdate }: Props) {
   }), [note.id])
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline, SourceQuote, NoteLink, Footnote, InlineComment, WritingModes, noteLinkExtension, slashExtension],
+    extensions: [StarterKit, Underline, SourceQuote, NoteLink, Footnote, InlineComment, WritingModes, ResizableImage, noteLinkExtension, slashExtension],
     content: parseContent(note.content),
     onUpdate: ({ editor }) => {
       const json = JSON.stringify(editor.getJSON())
@@ -171,6 +172,48 @@ export function Editor({ note, captures, onUpdate }: Props) {
 
   // Cleanup debounce on unmount
   useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current) }, [])
+
+  // Paste / drop image files anywhere in the editor → insert as a
+  // ResizableImage node with a data URL. ProseMirror's default paste
+  // handler ignores image File objects from the clipboard, so we hook
+  // a small DOM-level handler that runs before TipTap's default.
+  useEffect(() => {
+    if (!editor) return
+    const dom = editor.view.dom
+    async function handleFiles(files: FileList | null, _e: Event): Promise<boolean> {
+      if (!files || files.length === 0) return false
+      const imgs = Array.from(files).filter(f => f.type.startsWith('image/'))
+      if (imgs.length === 0) return false
+      // Sequential to keep insertion order stable
+      for (const file of imgs) {
+        const dataUrl = await fileToDataUrl(file)
+        editor!.chain().focus().setImage({ src: dataUrl, alt: file.name } as any).run()
+      }
+      return true
+    }
+    function onPaste(e: ClipboardEvent) {
+      const inserted = handleFiles(e.clipboardData?.files ?? null, e)
+      // We can't await synchronously, so optimistically prevent default
+      // when the clipboard has any files at all
+      if (e.clipboardData?.files && e.clipboardData.files.length > 0) {
+        e.preventDefault()
+        void inserted
+      }
+    }
+    function onDrop(e: DragEvent) {
+      const files = e.dataTransfer?.files
+      if (files && files.length > 0 && Array.from(files).some(f => f.type.startsWith('image/'))) {
+        e.preventDefault()
+        void handleFiles(files, e)
+      }
+    }
+    dom.addEventListener('paste', onPaste)
+    dom.addEventListener('drop', onDrop)
+    return () => {
+      dom.removeEventListener('paste', onPaste)
+      dom.removeEventListener('drop', onDrop)
+    }
+  }, [editor])
 
   // Track the most-recent non-empty selection on a window global so the
   // /inline-comment slash command can wrap that range (the slash trigger

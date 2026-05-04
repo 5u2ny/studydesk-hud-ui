@@ -306,6 +306,105 @@ body {
   background: rgba(40, 123, 255, 0.22);
 }
 
+/* ── Coverage badge on the document context row (ussumant port) ───────── */
+.coverage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(95, 161, 255, 0.10);
+  border: 1px solid rgba(95, 161, 255, 0.20);
+  color: #5fa1ff;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.coverage-badge.is-stale {
+  background: rgba(255, 184, 77, 0.10);
+  border-color: rgba(255, 184, 77, 0.28);
+  color: #ffb84d;
+}
+.coverage-badge .coverage-stale-icon { font-size: 10px; margin-left: 1px; }
+
+/* ── Talk / sidecar scratch pane (MediaWiki port) ──────────────────────── */
+.document-scratch {
+  margin: 16px 32px 0;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+.document-scratch.has-content { border-color: rgba(149, 90, 255, 0.20); background: rgba(149, 90, 255, 0.04); }
+.document-scratch-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: left;
+}
+.document-scratch.has-content .document-scratch-toggle { color: rgba(180, 143, 255, 0.95); }
+.document-scratch-icon { font-size: 12px; }
+.document-scratch-toggle em { font-size: 10px; font-style: normal; font-weight: 600; color: rgba(255, 255, 255, 0.45); margin-left: auto; text-transform: none; letter-spacing: 0; }
+.document-scratch-chevron { color: rgba(255, 255, 255, 0.40); font-size: 12px; }
+.document-scratch-area {
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+}
+.document-scratch-area::placeholder { color: rgba(255, 255, 255, 0.30); font-style: italic; }
+
+/* ── Resizable images (wysimark port) ──────────────────────────────────── */
+.tiptap-image-wrap {
+  display: inline-block;
+  position: relative;
+  max-width: 100%;
+  line-height: 0;
+}
+.tiptap-image-wrap img {
+  border-radius: 6px;
+  user-select: none;
+}
+.tiptap-image-handle {
+  display: none;
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: #5fa1ff;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.20);
+  z-index: 2;
+}
+.tiptap-image-wrap.is-selected .tiptap-image-handle { display: block; }
+.tiptap-image-wrap.is-selected img {
+  outline: 2px solid #5fa1ff;
+  outline-offset: 1px;
+}
+.handle-nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+
 /* ── Auto-ToC dropdown (editor.md port) ──────────────────────────────── */
 .toc-dropdown { position: relative; display: inline-block; }
 .toc-menu {

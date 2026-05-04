@@ -1096,7 +1096,7 @@ function WorkspaceSurface({
       return <RelationMapView notes={notes} courses={courses} deadlines={deadlines} assignments={assignments} studyItems={studyItems} captures={captures} courseId={currentCourse?.id} onSelectNote={onSelect} />
     case 'today':
     default:
-      return <DocumentWorkspace selected={selected} selectedText={selectedText} captures={captures} notes={notes} riverIds={riverIds} currentCourse={currentCourse} linkedAssignment={linkedAssignment} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} onCreateFromFile={onCreateFromFile} onRefresh={onRefresh} onSelect={onSelect} onAddToRiver={onAddToRiver} onRemoveFromRiver={onRemoveFromRiver} />
+      return <DocumentWorkspace selected={selected} selectedText={selectedText} captures={captures} notes={notes} courses={courses} riverIds={riverIds} currentCourse={currentCourse} linkedAssignment={linkedAssignment} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} onCreateFromFile={onCreateFromFile} onRefresh={onRefresh} onSelect={onSelect} onAddToRiver={onAddToRiver} onRemoveFromRiver={onRemoveFromRiver} />
   }
 }
 
@@ -1105,6 +1105,7 @@ function DocumentWorkspace({
   selectedText,
   captures,
   notes,
+  courses,
   riverIds,
   currentCourse,
   linkedAssignment,
@@ -1121,6 +1122,7 @@ function DocumentWorkspace({
   selectedText: string
   captures: Capture[]
   notes: Note[]
+  courses: Course[]
   riverIds: string[]
   onAddToRiver: (noteId: string) => void
   onRemoveFromRiver: (noteId: string) => void
@@ -1172,6 +1174,34 @@ function DocumentWorkspace({
     if (!selected) return [] as Note[]
     return notes.filter(n => n.parentId === selected.id)
   }, [notes, selected])
+
+  // Source coverage (ussumant/llm-wiki-compiler port): walks the current
+  // note for SourceQuote nodes and reports how many distinct sources
+  // back this note plus how recent the most-recently-imported one is.
+  // Pure metadata — no AI involved. Surfaces a stale-source warning
+  // when the freshest source is older than 18 months.
+  const sourceCoverage = useMemo(() => {
+    if (!selected?.content) return { count: 0, freshestDays: null as number | null }
+    let json: any
+    try { json = JSON.parse(selected.content) } catch { return { count: 0, freshestDays: null } }
+    const paths = new Set<string>()
+    const walk = (node: any) => {
+      if (!node) return
+      if (node.type === 'sourceQuote' && node.attrs?.sourcePath) paths.add(node.attrs.sourcePath)
+      if (Array.isArray(node.content)) node.content.forEach(walk)
+    }
+    walk(json)
+    if (paths.size === 0) return { count: 0, freshestDays: null }
+    // Look up freshness via course materialsImportedFiles
+    let freshest = 0
+    for (const c of courses) {
+      for (const r of c.materialsImportedFiles ?? []) {
+        if (paths.has(r.path) && r.importedAt > freshest) freshest = r.importedAt
+      }
+    }
+    if (!freshest) return { count: paths.size, freshestDays: null }
+    return { count: paths.size, freshestDays: Math.floor((Date.now() - freshest) / 86_400_000) }
+  }, [selected?.content, courses])
 
   // Inline comments (suitenumerique/docs port): collected by walking
   // the TipTap JSON for spans with the inlineComment mark. Each entry
@@ -1271,6 +1301,23 @@ function DocumentWorkspace({
             ))}
             <span>{selected.documentType?.replace('_', ' ') ?? 'note'}</span>
             {linkedAssignment?.dueDate && <><Circle size={4} fill="currentColor" /><span>Due {formatDue(linkedAssignment.dueDate)}</span></>}
+            {/* Coverage badge: count of distinct SourceQuote sources + freshness */}
+            {sourceCoverage.count > 0 && (
+              <span
+                className={`coverage-badge ${
+                  sourceCoverage.freshestDays !== null && sourceCoverage.freshestDays > 540 ? 'is-stale' : ''
+                }`}
+                title={
+                  sourceCoverage.freshestDays === null
+                    ? `${sourceCoverage.count} cited source${sourceCoverage.count === 1 ? '' : 's'}`
+                    : `${sourceCoverage.count} cited source${sourceCoverage.count === 1 ? '' : 's'}, freshest imported ${sourceCoverage.freshestDays}d ago${sourceCoverage.freshestDays > 540 ? ' (>18mo — may be outdated)' : ''}`
+                }
+              >
+                <BookOpen size={10} />
+                {sourceCoverage.count} src
+                {sourceCoverage.freshestDays !== null && sourceCoverage.freshestDays > 540 && <span className="coverage-stale-icon">⚠️</span>}
+              </span>
+            )}
             {selectedText && <button onClick={createQuestionFromDoc}>Create question</button>}
             <button onClick={createSubpage} title="Add a subpage under this note">+ Subpage</button>
             <button
@@ -1296,6 +1343,11 @@ function DocumentWorkspace({
             key={selected.id}
             note={selected}
             captures={captures}
+            onUpdate={(patch) => onUpdate(selected.id, patch)}
+          />
+          {/* Talk / sidecar pane (MediaWiki port) — scratch space per note */}
+          <ScratchPane
+            note={selected}
             onUpdate={(patch) => onUpdate(selected.id, patch)}
           />
           {inlineComments.length > 0 && (
@@ -2436,6 +2488,61 @@ function RailText({ title, meta }: { title: string; meta: string }) {
 
 function AlertCard({ alert, onDismiss, onResolve }: { alert: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>; onDismiss: () => void; onResolve: () => void }) {
   return <div className="studydesk-alert"><Target size={19} /><div><strong>{alert.title}</strong><span>{alert.reason}</span></div><button onClick={onResolve}>Resolve</button><button onClick={onDismiss}>Dismiss</button></div>
+}
+
+/** Talk / sidecar pane (MediaWiki port) — scratch space per note for
+ *  questions, meta-thoughts, TODOs. Plain-text textarea (no TipTap)
+ *  to keep friction low. Collapsed by default; click the header to
+ *  expand. Auto-saves with a 700ms debounce. */
+function ScratchPane({ note, onUpdate }: { note: Note; onUpdate: (patch: Partial<Note>) => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState(note.scratch ?? '')
+  const lastSaved = useRef(note.scratch ?? '')
+  const timer = useRef<number>(0)
+
+  // When the user navigates to a different note, reset draft to its scratch
+  useEffect(() => {
+    setDraft(note.scratch ?? '')
+    lastSaved.current = note.scratch ?? ''
+  }, [note.id])
+
+  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const v = e.target.value
+    setDraft(v)
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => {
+      if (v !== lastSaved.current) {
+        lastSaved.current = v
+        onUpdate({ scratch: v }).catch(() => {})
+      }
+    }, 700)
+  }
+
+  // Cleanup on unmount
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+
+  const lineCount = draft.trim() ? draft.trim().split('\n').length : 0
+  const hasContent = lineCount > 0
+
+  return (
+    <section className={`document-scratch ${open ? 'is-open' : ''} ${hasContent ? 'has-content' : ''}`} aria-label="Scratch / questions">
+      <button className="document-scratch-toggle" onClick={() => setOpen(o => !o)}>
+        <span className="document-scratch-icon">💬</span>
+        <span>Scratch</span>
+        {hasContent && <em>{lineCount} line{lineCount === 1 ? '' : 's'}</em>}
+        <span className="document-scratch-chevron">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <textarea
+          className="document-scratch-area"
+          value={draft}
+          onChange={handleChange}
+          placeholder="Quick thoughts, questions to ask the prof, things to verify…"
+          rows={6}
+        />
+      )}
+    </section>
+  )
 }
 
 /** Story-river card (TiddlyWiki port). Shows a stacked, read-only

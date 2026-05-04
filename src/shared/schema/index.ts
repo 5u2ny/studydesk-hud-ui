@@ -41,6 +41,11 @@ export interface Note {
     quote: string;        // verbatim snippet the comment is anchored to
     createdAt: number;
   }>;
+  // Talk / sidecar pane (MediaWiki port): a paired scratch space for
+  // questions, meta-thoughts, and TODOs about the note. Stored as plain
+  // text (no rich formatting) — the goal is friction-free quick capture
+  // alongside the canonical body.
+  scratch?: string;
   tags?: string[];
   capturedFromIds: string[];
   createdAt: number;
