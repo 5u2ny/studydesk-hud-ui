@@ -737,12 +737,16 @@ body {
 .studydesk-notch-shell.is-hover-dock,
 .studydesk-notch-shell.is-expanded {
   width: calc(var(--notch-wing-width) + var(--physical-notch-width) + var(--notch-wing-width));
-  border-radius: 0 0 14px 14px;
 }
-
+/* The actual silhouette is now drawn by the NotchShape SVG (mounted as
+   first child of the shell, position:absolute, painted behind the flex
+   layout). The shell itself becomes a transparent flex container — its
+   own background:#000 + border-radius become redundant when the SVG
+   covers the full area, but we keep them as a fallback so the shell
+   never appears as a translucent ghost during the brief moment between
+   shell mount and first ResizeObserver tick. */
 .studydesk-notch-shell.is-expanded {
-  /* Active popover: bulge a bit more so it reads as a single object with
-   * the popover beneath. Matches DynamicNotch's expandLiveActivity radius. */
+  /* Fallback radius retained for ResizeObserver-bootstrap window only */
   border-radius: 0 0 18px 18px;
 }
 
@@ -755,13 +759,15 @@ body {
 
 /* Left wing: timer / idle chips -- collapsed until shell expands */
 .studydesk-notch-wing-left {
+  position: relative;
+  z-index: 1;        /* sit above the NotchShape SVG silhouette */
   width: 0;
   min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
-  background: #000;
+  background: transparent;  /* SVG provides the visible black silhouette */
   padding: 0;
   opacity: 0;
   overflow: hidden;
@@ -770,28 +776,32 @@ body {
   pointer-events: none;
 }
 
-/* Center cap: physical notch footprint -- always blank black.
-   No content renders here; it matches the hardware notch. */
+/* Center cap: physical notch footprint -- transparent because the SVG
+   shape draws the black underneath. */
 .studydesk-notch-cap {
+  position: relative;
+  z-index: 1;
   width: var(--physical-notch-width);
   min-width: var(--physical-notch-width);
   max-width: var(--physical-notch-width);
   flex-shrink: 0;
   height: 100%;
-  background: #000;
+  background: transparent;
   overflow: hidden;
   cursor: pointer;
 }
 
 /* Right dock: 4 feature icons -- collapsed until shell expands */
 .studydesk-notch-dock-right {
+  position: relative;
+  z-index: 1;
   width: 0;
   min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
-  background: #000;
+  background: transparent;
   gap: 2px;
   padding: 0;
   opacity: 0;

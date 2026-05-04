@@ -4,6 +4,7 @@ import type { NotchFeatureId, NotchIdleChip } from './notchModel'
 import { NotchIdle } from './NotchIdle'
 import { NotchPopover } from './NotchPopover'
 import { NotchFeatureButton, type NotchDockItem } from './NotchFeatureButton'
+import { NotchShape } from './NotchShape'
 
 export function NotchShell({
   activeFeature,
@@ -104,6 +105,13 @@ export function NotchShell({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
+        {/* Custom NotchShape silhouette — drawn behind the flex content.
+            Concave top shoulders + convex bottom corners give the shell the
+            true notch profile (port of NotchShape.swift dual-radius path). */}
+        <NotchShape
+          topRadius={activeFeature ? 8 : showWings ? 6 : 0}
+          bottomRadius={activeFeature ? 18 : showWings ? 14 : 6}
+        />
         {/* Left wing: timer -- visible on hover */}
         <div className="studydesk-notch-wing-left" onClick={onCapClick}>
           <NotchIdle
