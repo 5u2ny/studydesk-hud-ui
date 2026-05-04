@@ -13,6 +13,7 @@
 import { Mark, Extension, mergeAttributes } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion'
+import { PluginKey } from '@tiptap/pm/state'
 import type { Note } from '@schema'
 
 /** Custom DOM event the workspace listens for. Detail = `noteId` to open. */
@@ -113,6 +114,7 @@ export function createNoteLinkSuggestionExtension(opts: NoteLinkSuggestionOption
         Suggestion<Note>({
           editor: this.editor,
           char: '[',
+          pluginKey: new PluginKey('noteLinkSuggestion'),
           startOfLine: false,
           // Custom matcher: only fire when the user types `[[`. We look
           // backward for the most-recent unclosed `[[` and treat the

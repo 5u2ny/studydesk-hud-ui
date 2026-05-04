@@ -13,6 +13,7 @@
 
 import { Extension, type Editor as TipTapEditor, type Range } from '@tiptap/core'
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion'
+import { PluginKey } from '@tiptap/pm/state'
 import {
   Heading1, Heading2, Heading3,
   List, ListOrdered, ListChecks,
@@ -369,6 +370,7 @@ export function createSlashCommandsExtension(
       return {
         suggestion: {
           char: '/',
+          pluginKey: new PluginKey('slashCommandSuggestion'),
           // AppFlowy's "supportSlashMenuNodeTypes" gate: only show the menu
           // inside nodes where slash insertion makes sense (i.e. not inside
           // code blocks, where '/' is literal). Empty paragraphs are the
