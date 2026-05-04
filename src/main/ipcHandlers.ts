@@ -237,6 +237,23 @@ export function setupIPC() {
   // as folder:readFile: only files inside a configured course materials
   // folder are allowed, so a malicious renderer can't tell the OS to open
   // arbitrary files (e.g. ~/.ssh/id_rsa).
+  // Export a note to a .md file. Renderer serializes the TipTap JSON
+  // to markdown and passes it as a string; main shows a save dialog and
+  // writes the file. No path restriction here since the user explicitly
+  // picks the destination via the native dialog.
+  ipcMain.handle('notes:exportMarkdown', async (_e, r: { title: string; markdown: string }) => {
+    const win = windowManager.notesWindow ?? windowManager.floatingWindow;
+    const safeBase = (r.title || 'note').replace(/[^a-zA-Z0-9_\-\.]/g, '_').replace(/_+/g, '_');
+    const result = await dialog.showSaveDialog(win!, {
+      title: 'Export note as Markdown',
+      defaultPath: `${safeBase}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    await fsp.writeFile(result.filePath, r.markdown, 'utf-8');
+    return { written: true, path: result.filePath, bytes: Buffer.byteLength(r.markdown, 'utf-8') };
+  });
+
   ipcMain.handle('shell:openSourceFile', async (_e, r: { path: string }) => {
     const courses = coursesService.list();
     const allowed = courses.some(c =>

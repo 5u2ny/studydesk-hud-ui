@@ -1214,6 +1214,22 @@ function DocumentWorkspace({
             {linkedAssignment?.dueDate && <><Circle size={4} fill="currentColor" /><span>Due {formatDue(linkedAssignment.dueDate)}</span></>}
             {selectedText && <button onClick={createQuestionFromDoc}>Create question</button>}
             <button onClick={createSubpage} title="Add a subpage under this note">+ Subpage</button>
+            <button
+              onClick={async () => {
+                if (!selected) return
+                try {
+                  const json = JSON.parse(selected.content)
+                  const { tipTapJsonToMarkdown } = await import('./lib/exportMarkdown')
+                  const md = tipTapJsonToMarkdown(json)
+                  await ipc.invoke('notes:exportMarkdown', { title: selected.title || 'note', markdown: md })
+                } catch (err) {
+                  console.warn('[exportMarkdown]', err)
+                }
+              }}
+              title="Export this note as a .md file"
+            >
+              Export .md
+            </button>
             <button onClick={() => onDelete(selected.id)}>Delete</button>
             {questionStatus && <em>{questionStatus}</em>}
           </div>

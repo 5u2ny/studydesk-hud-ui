@@ -51,6 +51,7 @@ const INVOKE_CHANNELS = new Set([
   'folder:recordImport',
   'folder:rescan',
   'shell:openSourceFile',
+  'notes:exportMarkdown',
 ]);
 
 const SUBSCRIBE_CHANNELS = new Set([
