@@ -3,6 +3,7 @@ import type { AcademicDeadline, Assignment, AttentionAlert, Capture, ChecklistIt
 import { Editor } from './Editor'
 import { FileDropZone } from './components/FileDropZone'
 import { DailyJournalView } from './components/DailyJournalView'
+import { ScanSyllabusDropZone } from './components/ScanSyllabusDropZone'
 import {
   ShellContainer,
   IconRail,
@@ -1646,6 +1647,10 @@ function SyllabusImportView({ selected, selectedText, courseId, onCreate, onConf
             {rawPaste.trim() && (
               <p className="empty-hint" style={{ marginTop: 6 }}>{rawPaste.trim().split('\n').length} lines pasted. Click "Parse syllabus" to extract.</p>
             )}
+            {/* Image OCR fallback (port from syllabus-scanner concept).
+                Drops the OCR'd text into the same paste area so the existing
+                regex parser handles it identically to typed/pasted text. */}
+            <ScanSyllabusDropZone onText={(text) => setRawPaste(prev => prev ? `${prev}\n\n${text}` : text)} />
           </section>
           <section className="phase3-panel wide">
             {selected && selectedText && !rawPaste.trim() ? (

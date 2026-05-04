@@ -71,6 +71,7 @@
     "node-addon-api": "^8.7.0",
     "pdfjs-dist": "^4.0.379",
     "tailwind-merge": "^3.5.0",
+    "tesseract.js": "^5.1.1",
     "uiohook-napi": "^1.5.5"
   }
 }
