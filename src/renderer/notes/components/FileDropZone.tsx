@@ -1,6 +1,7 @@
 // Drag-and-drop file ingestion for the workspace.
-// Drops a PDF/TXT/MD file -> extracts text -> creates a Note with documentType: 'reading'
-// linked to the active course.
+// Drops a PDF/DOCX/TXT/MD file -> extracts content -> creates a Note with
+// documentType: 'reading' linked to the active course. .docx and .md are
+// parsed into rich TipTap JSON; .pdf and .txt fall back to plain text.
 
 import React, { useCallback, useState } from 'react'
 import { Upload, Loader2, FileText, AlertCircle } from 'lucide-react'
@@ -11,7 +12,7 @@ interface Props {
   courseId?: string
   documentType?: Note['documentType']
   onCreated: (noteId: string) => void
-  onCreate: (input: { title: string; content: string; courseId?: string; documentType?: Note['documentType'] }) => Promise<string>
+  onCreate: (input: { title: string; content: string; docJson?: unknown; courseId?: string; documentType?: Note['documentType'] }) => Promise<string>
 }
 
 export function FileDropZone({ courseId, documentType = 'reading', onCreated, onCreate }: Props) {
@@ -25,12 +26,13 @@ export function FileDropZone({ courseId, documentType = 'reading', onCreated, on
     try {
       const result = await extractFileText(file)
       const trimmed = result.text.trim()
-      if (!trimmed) {
-        throw new Error('No text could be extracted from this file.')
+      if (!trimmed && !result.docJson) {
+        throw new Error('No content could be extracted from this file.')
       }
       const noteId = await onCreate({
         title: result.title,
         content: trimmed,
+        docJson: result.docJson,
         courseId,
         documentType,
       })
@@ -66,7 +68,7 @@ export function FileDropZone({ courseId, documentType = 'reading', onCreated, on
         {busy ? <Loader2 size={20} className="spin" /> : <Upload size={20} />}
       </div>
       <div className="file-drop-body">
-        <strong>{busy ? 'Extracting text...' : 'Drop a PDF, TXT, or Markdown file'}</strong>
+        <strong>{busy ? 'Extracting…' : 'Drop a PDF, DOCX, MD, or TXT file'}</strong>
         <span>or click to browse. Text is extracted locally; no upload to a server.</span>
         {error && (
           <div className="file-drop-error"><AlertCircle size={12} /> {error}</div>
@@ -76,7 +78,7 @@ export function FileDropZone({ courseId, documentType = 'reading', onCreated, on
         <FileText size={14} /> Browse
         <input
           type="file"
-          accept=".pdf,.txt,.md,.markdown"
+          accept=".pdf,.docx,.txt,.md,.markdown"
           onChange={onPick}
           disabled={busy}
           style={{ display: 'none' }}

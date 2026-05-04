@@ -27,6 +27,11 @@ export interface Note {
   // Date key for daily entries (e.g. "2026-05-03"). Set only when documentType === 'daily_entry'.
   // Combined with courseId, this gives at most one daily entry per (course, day).
   dayKey?: string;
+  // Hierarchical subpages (port from suitenumerique/docs). When set, this
+  // note is a child of the given parent note id. Forms a tree orthogonal
+  // to the folder/course taxonomy (a course can contain notes, and any
+  // note can have child sub-notes regardless of course).
+  parentId?: string;
   tags?: string[];
   capturedFromIds: string[];
   createdAt: number;

@@ -306,6 +306,108 @@ body {
   background: rgba(40, 123, 255, 0.22);
 }
 
+/* ── Story river (TiddlyWiki port) — stacked read-only previews ───────── */
+.river-stack {
+  margin: 24px 28px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.river-note-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+  animation: riverCardIn 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes riverCardIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.river-note-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(95, 161, 255, 0.05);
+}
+.river-note-card-title { font-size: 13px; font-weight: 700; color: #f5f5f7; }
+.river-note-card-meta { font-size: 10.5px; color: rgba(255, 255, 255, 0.45); margin-right: auto; }
+.river-note-card-action {
+  border: 1px solid rgba(95, 161, 255, 0.30);
+  background: rgba(95, 161, 255, 0.10);
+  color: #5fa1ff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.10s;
+}
+.river-note-card-action:hover { background: rgba(95, 161, 255, 0.20); }
+.river-note-card-close {
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 5px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 14px; line-height: 1;
+  cursor: pointer;
+  transition: background 0.10s, color 0.10s;
+}
+.river-note-card-close:hover { background: rgba(255, 80, 80, 0.16); color: #ff7a7a; }
+.river-note-card-body {
+  padding: 14px 18px 16px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.85);
+  max-height: 360px;
+  overflow-y: auto;
+}
+.river-note-card-body h1, .river-note-card-body h2, .river-note-card-body h3 {
+  margin: 12px 0 6px;
+  color: #f5f5f7;
+}
+.river-note-card-body p { margin: 0 0 8px; }
+.river-note-card-body ul, .river-note-card-body ol { padding-left: 22px; margin: 6px 0; }
+.river-note-card-body blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 3px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.70);
+}
+
+/* ── Breadcrumb + Subpages (suitenumerique/docs port) ──────────────────── */
+.document-context-row .breadcrumb-link {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: color 0.10s;
+}
+.document-context-row .breadcrumb-link:hover { color: #5fa1ff; text-decoration: underline; }
+.document-context-row .breadcrumb-sep { color: rgba(255, 255, 255, 0.30); margin: 0 2px; }
+
+.document-subpages {
+  margin: 18px 32px 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+.document-subpages header {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.document-subpages header span { color: rgba(255, 255, 255, 0.55); }
+.document-subpages header em { color: rgba(255, 255, 255, 0.85); font-style: normal; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: rgba(110, 224, 220, 0.18); border: 1px solid rgba(110, 224, 220, 0.28); }
+.document-subpages ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.document-subpages .document-backlink-item .dot { color: rgba(110, 224, 220, 0.85); font-family: monospace; }
+
 /* ── Backlinks panel (TiddlyWiki/MediaWiki — reverse references) ──────── */
 .document-backlinks {
   margin: 18px 32px 8px;

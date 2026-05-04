@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AcademicDeadline, Assignment, AttentionAlert, Capture, ChecklistItem, ClassSession, ConfusionItem, Course, Note, StudyItem } from '@schema'
 import { Editor } from './Editor'
 import { FileDropZone } from './components/FileDropZone'
@@ -197,7 +197,33 @@ function initialQuickAdd(): QuickAddKind | null {
 export default function App() {
   const initialQuickAddKind = initialQuickAdd()
   const [notes, setNotes] = useState<Note[]>([])
-  const [selected, setSelected] = useState<Note | null>(null)
+  const [selected, setSelectedRaw] = useState<Note | null>(null)
+  // Story river (TiddlyWiki port): clicking a [[wiki-link]], backlink, or
+  // subpage stacks the linked note BELOW the current one instead of replacing
+  // it. Sidebar selection still replaces. The river is just a list of note
+  // ids (not full Notes) so it survives notes-list refreshes cleanly.
+  const [riverIds, setRiverIds] = useState<string[]>([])
+  // setSelected wrapper that also clears the river — primary navigation
+  // (sidebar, course switch, quickAdd) starts a fresh river. Accepts both
+  // a direct value and the functional updater form so existing call sites
+  // (refresh() uses the updater) keep working.
+  const setSelected = useCallback((n: Note | null | ((prev: Note | null) => Note | null)) => {
+    if (typeof n === 'function') setSelectedRaw(n)
+    else setSelectedRaw(n)
+    setRiverIds([])
+  }, [])
+  // Ref tracks the latest `selected` so the window-event listener (which
+  // is registered once with empty deps) reads the current id, not stale.
+  const selectedIdRef = useRef<string | null>(null)
+  useEffect(() => { selectedIdRef.current = selected?.id ?? null }, [selected])
+
+  const addToRiver = useCallback((noteId: string) => {
+    if (!noteId) return
+    setRiverIds(prev => prev.includes(noteId) || noteId === selectedIdRef.current ? prev : [...prev, noteId])
+  }, [])
+  const removeFromRiver = useCallback((noteId: string) => {
+    setRiverIds(prev => prev.filter(id => id !== noteId))
+  }, [])
   const [captures, setCaptures] = useState<Capture[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [assignments, setAssignments] = useState<Assignment[]>([])
@@ -254,16 +280,16 @@ export default function App() {
       ipc.invoke<Note>('notes:get', { id: noteId }).then(note => note && setSelected(note)).catch(() => {})
     })
     // [[wiki-link]] click handler — TipTap dispatches this when a user
-    // clicks a rendered note-link in the editor. Use IPC for the lookup
-    // so this listener always sees the latest stored note (the closure
-    // would otherwise capture stale `notes` state).
+    // clicks a rendered note-link in the editor. Story-river behavior:
+    // the clicked note is appended BELOW the current one instead of
+    // replacing it (TiddlyWiki port). IPC ensures fresh data — the
+    // closure would otherwise capture stale `notes` state.
     const onNoteLinkClick = (e: Event) => {
       const detail = (e as CustomEvent<{ noteId: string }>).detail
       if (!detail?.noteId) return
       ipc.invoke<Note>('notes:get', { id: detail.noteId }).then(target => {
         if (!target) return
-        setSelected(target)
-        if (target.courseId) setSelectedCourseId(target.courseId)
+        addToRiver(target.id)
       }).catch(() => {})
     }
     window.addEventListener('studydesk:open-note-link', onNoteLinkClick)
@@ -279,9 +305,12 @@ export default function App() {
         const { extractFileText } = await import('./lib/extractFileText')
         const result = await extractFileText(file)
         const trimmed = result.text.trim()
-        if (!trimmed) throw new Error('No extractable text')
+        if (!trimmed && !result.docJson) throw new Error('No extractable text')
 
-        const note = await ipc.invoke<Note>('notes:create', { title: result.title, content: tipTapDocument(trimmed) })
+        // Use rich TipTap JSON for .docx/.md imports; fall back to a
+        // single-paragraph wrap for plain-text/.pdf where structure was lost.
+        const content = result.docJson ? JSON.stringify(result.docJson) : tipTapDocument(trimmed)
+        const note = await ipc.invoke<Note>('notes:create', { title: result.title, content })
         const updated = await ipc.invoke<Note>('notes:update', {
           id: note.id,
           patch: { documentType: 'reading', courseId: payload.courseId, tags: [`folder-import`] },
@@ -378,8 +407,12 @@ export default function App() {
   }
 
   // Used by the FileDropZone — creates a note from extracted file text and links it to a course.
-  async function handleCreateFromFile(input: { title: string; content: string; courseId?: string; documentType?: Note['documentType'] }): Promise<string> {
-    const note = await ipc.invoke<Note>('notes:create', { title: input.title || 'Imported file', content: tipTapDocument(input.content) })
+  async function handleCreateFromFile(input: { title: string; content: string; docJson?: unknown; courseId?: string; documentType?: Note['documentType'] }): Promise<string> {
+    // Prefer rich-parsed TipTap JSON when available (.docx, .md). Fallback
+    // to plain-text-wrapped-in-paragraph for .pdf and .txt where structure
+    // isn't reliably reconstructable.
+    const content = input.docJson ? JSON.stringify(input.docJson) : tipTapDocument(input.content)
+    const note = await ipc.invoke<Note>('notes:create', { title: input.title || 'Imported file', content })
     const updated = await ipc.invoke<Note>('notes:update', {
       id: note.id,
       patch: {
@@ -850,6 +883,9 @@ export default function App() {
           onRefresh={refresh}
           onStatus={setStatus}
           onSelect={setSelected}
+          riverIds={riverIds}
+          onAddToRiver={addToRiver}
+          onRemoveFromRiver={removeFromRiver}
         />
       </MainPanel>
 
@@ -929,6 +965,9 @@ function WorkspaceSurface({
   onRefresh,
   onStatus,
   onSelect,
+  riverIds,
+  onAddToRiver,
+  onRemoveFromRiver,
 }: {
   activeTool: WorkspaceTool
   selected: Note | null
@@ -961,6 +1000,9 @@ function WorkspaceSurface({
   onRefresh: () => void
   onStatus: (msg: string) => void
   onSelect: (note: Note) => void
+  riverIds: string[]
+  onAddToRiver: (noteId: string) => void
+  onRemoveFromRiver: (noteId: string) => void
 }) {
   switch (activeTool) {
     case 'dashboard':
@@ -981,7 +1023,7 @@ function WorkspaceSurface({
       return <RelationMapView notes={notes} courses={courses} deadlines={deadlines} assignments={assignments} studyItems={studyItems} captures={captures} courseId={currentCourse?.id} onSelectNote={onSelect} />
     case 'today':
     default:
-      return <DocumentWorkspace selected={selected} selectedText={selectedText} captures={captures} notes={notes} currentCourse={currentCourse} linkedAssignment={linkedAssignment} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} onCreateFromFile={onCreateFromFile} onRefresh={onRefresh} onSelect={onSelect} />
+      return <DocumentWorkspace selected={selected} selectedText={selectedText} captures={captures} notes={notes} riverIds={riverIds} currentCourse={currentCourse} linkedAssignment={linkedAssignment} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} onCreateFromFile={onCreateFromFile} onRefresh={onRefresh} onSelect={onSelect} onAddToRiver={onAddToRiver} onRemoveFromRiver={onRemoveFromRiver} />
   }
 }
 
@@ -990,6 +1032,7 @@ function DocumentWorkspace({
   selectedText,
   captures,
   notes,
+  riverIds,
   currentCourse,
   linkedAssignment,
   onUpdate,
@@ -998,11 +1041,16 @@ function DocumentWorkspace({
   onCreateFromFile,
   onRefresh,
   onSelect,
+  onAddToRiver,
+  onRemoveFromRiver,
 }: {
   selected: Note | null
   selectedText: string
   captures: Capture[]
   notes: Note[]
+  riverIds: string[]
+  onAddToRiver: (noteId: string) => void
+  onRemoveFromRiver: (noteId: string) => void
   currentCourse?: Course
   linkedAssignment?: Assignment
   onUpdate: (id: string, patch: Partial<Note>) => Promise<void>
@@ -1027,6 +1075,41 @@ function DocumentWorkspace({
       return typeof n.content === 'string' && n.content.includes(`"noteId":"${targetId}"`)
     })
   }, [notes, selected])
+
+  // Hierarchical subpages (port from suitenumerique/docs): walk parentId
+  // chain to build the breadcrumb, and find direct children for the
+  // "Subpages" footer. Cycle-guard with a Set so a corrupted parentId
+  // loop doesn't infinite-loop the renderer.
+  const parentChain = useMemo(() => {
+    if (!selected?.parentId) return [] as Note[]
+    const chain: Note[] = []
+    const seen = new Set<string>()
+    let id: string | undefined = selected.parentId
+    while (id && !seen.has(id)) {
+      seen.add(id)
+      const parent = notes.find(n => n.id === id)
+      if (!parent) break
+      chain.unshift(parent)
+      id = parent.parentId
+    }
+    return chain
+  }, [notes, selected])
+
+  const children = useMemo(() => {
+    if (!selected) return [] as Note[]
+    return notes.filter(n => n.parentId === selected.id)
+  }, [notes, selected])
+
+  const createSubpage = useCallback(async () => {
+    if (!selected) return
+    const note = await ipc.invoke<Note>('notes:create', { title: 'Untitled subpage', content: '' })
+    const updated = await ipc.invoke<Note>('notes:update', {
+      id: note.id,
+      patch: { documentType: 'note', courseId: selected.courseId, parentId: selected.id, tags: [] },
+    })
+    onRefresh()
+    onSelect(updated)
+  }, [selected, onRefresh, onSelect])
 
   async function createQuestionFromDoc() {
     if (!selected || !selectedText) return
@@ -1055,9 +1138,17 @@ function DocumentWorkspace({
         <>
           <div className="document-context-row">
             {currentCourse && <><span>{currentCourse.code ?? currentCourse.name}</span><Circle size={4} fill="currentColor" /></>}
+            {/* Parent-page breadcrumb (suitenumerique/docs port) */}
+            {parentChain.map(p => (
+              <React.Fragment key={p.id}>
+                <button className="breadcrumb-link" onClick={() => onSelect(p)}>{p.title || 'Untitled'}</button>
+                <span className="breadcrumb-sep">›</span>
+              </React.Fragment>
+            ))}
             <span>{selected.documentType?.replace('_', ' ') ?? 'note'}</span>
             {linkedAssignment?.dueDate && <><Circle size={4} fill="currentColor" /><span>Due {formatDue(linkedAssignment.dueDate)}</span></>}
             {selectedText && <button onClick={createQuestionFromDoc}>Create question</button>}
+            <button onClick={createSubpage} title="Add a subpage under this note">+ Subpage</button>
             <button onClick={() => onDelete(selected.id)}>Delete</button>
             {questionStatus && <em>{questionStatus}</em>}
           </div>
@@ -1067,6 +1158,25 @@ function DocumentWorkspace({
             captures={captures}
             onUpdate={(patch) => onUpdate(selected.id, patch)}
           />
+          {children.length > 0 && (
+            <section className="document-subpages" aria-label="Subpages of this note">
+              <header><span>Subpages</span><em>{children.length}</em></header>
+              <ul>
+                {children.slice(0, 12).map(c => (
+                  <li key={c.id}>
+                    <button onClick={() => onSelect(c)} className="document-backlink-item">
+                      <span className="dot" aria-hidden="true">└</span>
+                      <strong>{c.title || 'Untitled'}</strong>
+                      <em>{(c.documentType ?? 'note').replace('_', ' ')}</em>
+                    </button>
+                  </li>
+                ))}
+                {children.length > 12 && (
+                  <li className="document-backlink-more">+{children.length - 12} more</li>
+                )}
+              </ul>
+            </section>
+          )}
           {backlinks.length > 0 && (
             <section className="document-backlinks" aria-label="Linked from these notes">
               <header><span>Linked from</span><em>{backlinks.length}</em></header>
@@ -1089,6 +1199,23 @@ function DocumentWorkspace({
           <footer className="document-footer">
             <span>Last saved {new Date(selected.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
           </footer>
+          {/* Story river: notes opened via [[wiki-link]] click stack here */}
+          {riverIds.length > 0 && (
+            <section className="river-stack" aria-label="Linked notes opened from this note">
+              {riverIds.map(rid => {
+                const rn = notes.find(n => n.id === rid)
+                if (!rn) return null
+                return (
+                  <RiverNoteCard
+                    key={rid}
+                    note={rn}
+                    onOpen={() => onSelect(rn)}
+                    onClose={() => onRemoveFromRiver(rid)}
+                  />
+                )
+              })}
+            </section>
+          )}
         </>
       ) : (
         <div className="notes-empty">
@@ -2144,6 +2271,41 @@ function RailText({ title, meta }: { title: string; meta: string }) {
 
 function AlertCard({ alert, onDismiss, onResolve }: { alert: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>; onDismiss: () => void; onResolve: () => void }) {
   return <div className="studydesk-alert"><Target size={19} /><div><strong>{alert.title}</strong><span>{alert.reason}</span></div><button onClick={onResolve}>Resolve</button><button onClick={onDismiss}>Dismiss</button></div>
+}
+
+/** Story-river card (TiddlyWiki port). Shows a stacked, read-only
+ *  preview of a note that was opened by clicking a [[wiki-link]] in
+ *  another note. Clicking "Open" promotes it to the primary editor
+ *  (replaces selected, clears the river); clicking × removes just
+ *  this card. Uses @tiptap/html generateHTML so we don't pay the cost
+ *  of mounting a full TipTap editor per river card. */
+function RiverNoteCard({ note, onOpen, onClose }: { note: Note; onOpen: () => void; onClose: () => void }) {
+  const html = useMemo(() => {
+    try {
+      const json = JSON.parse(note.content)
+      // Lazy-import the same extensions the import pipeline uses to avoid
+      // bringing them into the App.tsx top-level import graph.
+      const { generateHTML } = require('@tiptap/html')
+      const StarterKit = require('@tiptap/starter-kit').default
+      const Underline = require('@tiptap/extension-underline').default
+      return generateHTML(json, [StarterKit, Underline])
+    } catch {
+      // Plain-text fallback for malformed or empty content
+      return `<p>${(note.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>`
+    }
+  }, [note.content])
+
+  return (
+    <article className="river-note-card">
+      <header className="river-note-card-header">
+        <span className="river-note-card-title">{note.title || 'Untitled'}</span>
+        <span className="river-note-card-meta">{(note.documentType ?? 'note').replace('_', ' ')}</span>
+        <button className="river-note-card-action" onClick={onOpen} title="Open in main editor">Open</button>
+        <button className="river-note-card-close" onClick={onClose} aria-label="Close">×</button>
+      </header>
+      <div className="river-note-card-body" dangerouslySetInnerHTML={{ __html: html }} />
+    </article>
+  )
 }
 
 function formatDue(value: number) {
