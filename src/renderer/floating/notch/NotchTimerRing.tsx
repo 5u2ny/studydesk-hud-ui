@@ -58,7 +58,7 @@ export function NotchTimerRing({
       onClick={onClick}
       aria-label={`${time} ${phaseLabel}, ${isRunning ? 'running' : 'paused'} — tap to toggle`}
     >
-      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
+      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true" className="notch-timer-svg">
         <circle
           cx={center}
           cy={center}
@@ -66,6 +66,7 @@ export function NotchTimerRing({
           fill="none"
           stroke="rgba(255, 255, 255, 0.18)"
           strokeWidth={STROKE}
+          className="notch-timer-track"
         />
         <circle
           cx={center}
@@ -78,11 +79,14 @@ export function NotchTimerRing({
           strokeDasharray={C}
           strokeDashoffset={dashOffset}
           transform={`rotate(-90 ${center} ${center})`}
-          style={{ transition: 'stroke-dashoffset 360ms cubic-bezier(0.32, 0.72, 0, 1)' }}
+          className="notch-timer-arc"
+          style={{ transition: 'stroke-dashoffset 360ms cubic-bezier(0.32, 0.72, 0, 1), stroke 600ms ease' }}
         />
         {glyph}
       </svg>
-      <span className="notch-timer-ring-time" aria-hidden="true">{time}</span>
+      {/* key={s} retriggers the tick keyframe each second so digits "pop"
+          (lifted from pomodoro animation primitive #4) */}
+      <span key={isRunning ? s : 'paused'} className="notch-timer-ring-time" aria-hidden="true">{time}</span>
     </button>
   )
 }

@@ -772,6 +772,72 @@ body {
   color: #fff;
 }
 
+/* ── Pomodoro animations ────────────────────────────────────────────────
+ * Inspired by pauchiner/pomodoro-timer (mount fade pattern); ring glow,
+ * tick pop, and phase color crossfade are written from spec since the
+ * source repo had none of these.
+ */
+
+/* Active glow: subtle drop-shadow pulse on the SVG when timer is running */
+.notch-timer-ring.running .notch-timer-svg {
+  filter: drop-shadow(0 0 4px rgba(var(--phase-r), var(--phase-g), var(--phase-b), 0.45));
+  animation: notchTimerPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes notchTimerPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 3px rgba(var(--phase-r), var(--phase-g), var(--phase-b), 0.40));
+  }
+  50% {
+    filter: drop-shadow(0 0 7px rgba(var(--phase-r), var(--phase-g), var(--phase-b), 0.65));
+  }
+}
+
+/* Phase color crossfade: when --phase-r/g/b changes (focus → break),
+ * the ring's color/stroke morphs over 600ms instead of snapping. */
+.notch-timer-svg .notch-timer-arc {
+  transition: stroke-dashoffset 360ms cubic-bezier(0.32, 0.72, 0, 1),
+              stroke 600ms ease;
+}
+
+.notch-timer-ring,
+.notch-timer-ring-time {
+  transition: color 600ms ease;
+}
+
+/* Tick pop: digits scale briefly each time the second changes. The TSX
+ * uses key={seconds} on the span so React remounts it, retriggering this
+ * animation. Subtle (1.03x) so it doesn't feel jittery. */
+.notch-timer-ring.running .notch-timer-ring-time {
+  animation: notchTimerTick 360ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes notchTimerTick {
+  0% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  40% {
+    transform: scale(1.03);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Respect users who prefer reduced motion (accessibility) */
+@media (prefers-reduced-motion: reduce) {
+  .notch-timer-ring.running .notch-timer-svg {
+    animation: none;
+    filter: drop-shadow(0 0 3px rgba(var(--phase-r), var(--phase-g), var(--phase-b), 0.30));
+  }
+  .notch-timer-ring.running .notch-timer-ring-time {
+    animation: none;
+  }
+}
+
 .notch-timer-ring:hover .notch-timer-ring-time,
 .notch-timer-ring:focus-visible .notch-timer-ring-time {
   color: #fff;
