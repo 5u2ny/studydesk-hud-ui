@@ -101,6 +101,9 @@ export default function App() {
   const [newDeadlineTitle, setNewDeadlineTitle] = useState('')
   const [newDeadlineDate, setNewDeadlineDate] = useState('')
   const [newStudyFront, setNewStudyFront] = useState('')
+  // Quick-typed capture (port from shpetimhaxhiu/simple-electron-notes-app):
+  // frictionless typed input in the notch popover, no need to select text first.
+  const [quickCaptureText, setQuickCaptureText] = useState('')
   const [captureFlash, setCaptureFlash] = useState(false)
   const [hoverDock, setHoverDock] = useState(false)
   const activeTrigger = useRef<FeatureId | null>(null)
@@ -256,6 +259,15 @@ export default function App() {
     setNewStudyFront('')
     await refreshAcademic()
   }, [newStudyFront, refreshAcademic])
+
+  const addQuickCapture = useCallback(async () => {
+    const text = quickCaptureText.trim()
+    if (!text) return
+    await ipc.invoke('capture:save', { text, source: 'manual' })
+    setQuickCaptureText('')
+    // The IPC handler also broadcasts capture:new which our existing
+    // listener picks up to refresh the captures list — no manual refresh needed.
+  }, [quickCaptureText])
 
   const captureToStudy = useCallback(async (capture: Capture, type: StudyItem['type']) => {
     await ipc.invoke('study:create', { front: capture.text, type, sourceCaptureId: capture.id, courseId: capture.courseId })
@@ -465,6 +477,24 @@ export default function App() {
       case 'capture':
         return (
           <PopoverPanel title="Capture" subtitle="Turn highlights into study material">
+            {/* Typed quick-capture (port from simple-electron-notes-app): no need to
+                select text first — drop a thought directly. Cmd/Ctrl+Enter saves. */}
+            <section className="student-action-strip slim">
+              <Input
+                value={quickCaptureText}
+                onChange={e => setQuickCaptureText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    addQuickCapture()
+                  }
+                }}
+                placeholder="Drop a thought... (⌘↵ to save)"
+              />
+              <Button variant="phase" onClick={addQuickCapture} disabled={!quickCaptureText.trim()}>
+                <Plus size={15} /> Save
+              </Button>
+            </section>
             <CompactList>
               {captures.slice(0, 4).map(c => (
                 <article key={c.id} className="student-capture-card compact">
@@ -476,7 +506,7 @@ export default function App() {
                   </div>
                 </article>
               ))}
-              {captures.length === 0 && <EmptyState compact icon={<Bookmark size={20} />} title="No captures yet" body="Captured reading and class notes will appear here." />}
+              {captures.length === 0 && <EmptyState compact icon={<Bookmark size={20} />} title="No captures yet" body="Type above or highlight text in any app to capture it here." />}
             </CompactList>
           </PopoverPanel>
         )

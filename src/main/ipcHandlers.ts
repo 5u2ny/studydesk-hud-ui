@@ -123,12 +123,20 @@ export function setupIPC() {
     return items;
   });
 
-  ipcMain.handle('capture:save', (_e, req: { text: string; source: 'highlight' | 'manual' }) => {
+  ipcMain.handle('capture:save', (_e, req: { text: string; source: 'highlight' | 'manual' | 'shortcut'; courseId?: string; category?: string }) => {
     const capture = {
-      id: randomUUID(), text: req.text, source: req.source,
-      createdAt: Date.now(), pinned: false,
+      id: randomUUID(),
+      text: req.text,
+      source: req.source,
+      courseId: req.courseId,
+      category: req.category,
+      createdAt: Date.now(),
+      pinned: false,
     };
     focusStore.addCapture(capture);
+    // Notify any open windows so the captures list refreshes immediately
+    windowManager.sendToFloating('capture:new', capture);
+    windowManager.notesWindow?.webContents?.send('capture:new', capture);
     return capture;
   });
 

@@ -18,7 +18,7 @@ import type {
 export interface IPCContracts {
   // Capture
   'capture:list':   { req: { limit?: number; category?: string }; res: Capture[] };
-  'capture:save':   { req: { text: string; source: Capture['source'] }; res: Capture };
+  'capture:save':   { req: { text: string; source: Capture['source']; courseId?: string; category?: string }; res: Capture };
   'capture:delete': { req: { id: string }; res: void };
   'capture:pin':    { req: { id: string; pinned: boolean }; res: Capture };
   'capture:update': { req: { id: string; patch: Partial<Capture> }; res: Capture };
