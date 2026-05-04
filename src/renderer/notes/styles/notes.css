@@ -3532,3 +3532,14 @@ body {
   color: rgba(255, 255, 255, 0.55);
   line-height: 1.45;
 }
+
+/* === Disabled state for primary action buttons (was missing) === */
+.review-button:disabled,
+.outline-button:disabled,
+.text-action:disabled,
+.share-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: grayscale(0.4);
+}
