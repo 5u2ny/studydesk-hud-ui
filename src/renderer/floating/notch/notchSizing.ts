@@ -35,15 +35,18 @@ export const NOTCH_GEOMETRY: NotchGeometry = {
   popoverOffset: 12,
 }
 
-// Left wing (120) + cap (180) + right wing (120) = 420px.
-// Full bar always rendered (opaque black); wings toggle opacity on hover.
+// Left wing (120) + cap (180) + right wing (120) = 420px when wings
+// are visible. At idle the BrowserWindow is shrunk to just the cap so
+// only the small black notch silhouette paints — without this the
+// transparent 240px on either side reads as a wide ghosted bar that
+// the user kept calling out.
 const BAR_W = NOTCH_WING_WIDTH + PHYSICAL_NOTCH_WIDTH + NOTCH_WING_WIDTH
 
 export const NOTCH_SIZES: Record<NotchState, NotchSize> = {
-  idle:             { w: BAR_W, h: 38 },
-  hoverDock:        { w: BAR_W, h: 38 },
-  activePopover:    { w: 540, h: 38 + 12 + 380 },
-  workspaceOpening: { w: BAR_W, h: 38 },
+  idle:             { w: PHYSICAL_NOTCH_WIDTH, h: 38 },
+  hoverDock:        { w: BAR_W,                h: 38 },
+  activePopover:    { w: 540,                  h: 38 + 12 + 380 },
+  workspaceOpening: { w: PHYSICAL_NOTCH_WIDTH, h: 38 },
 }
 
 export function getNotchSize(state: NotchState): NotchSize {

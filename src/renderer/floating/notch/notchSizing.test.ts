@@ -7,12 +7,12 @@ describe('notch sizing', () => {
     expect(NOTCH_WING_WIDTH).toBe(120)
   })
 
-  test('idle bar = left wing + cap + right wing (120 + 180 + 120 = 420px)', () => {
+  test('idle / workspaceOpening shrink to the cap; hoverDock is the full 420px bar', () => {
     const barW = NOTCH_WING_WIDTH + PHYSICAL_NOTCH_WIDTH + NOTCH_WING_WIDTH
     expect(barW).toBe(420)
-    expect(getNotchSize('idle')).toEqual({ w: barW, h: 38 })
+    expect(getNotchSize('idle')).toEqual({ w: PHYSICAL_NOTCH_WIDTH, h: 38 })
+    expect(getNotchSize('workspaceOpening')).toEqual({ w: PHYSICAL_NOTCH_WIDTH, h: 38 })
     expect(getNotchSize('hoverDock')).toEqual({ w: barW, h: 38 })
-    expect(getNotchSize('workspaceOpening')).toEqual({ w: barW, h: 38 })
   })
 
   test('activePopover uses a wider window for the widget below', () => {
