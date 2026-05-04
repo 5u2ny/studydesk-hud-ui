@@ -21,10 +21,7 @@ export function NotchIdle({
 }) {
   // Non-timer chips (deadline, study). These render as small subdued
   // pills next to the ring — kept narrow so the left wing stays compact.
-  // While the timer is running the ring already conveys phase + time,
-  // and adding an unreadable truncated chip ("20:00 is Re...") next to
-  // it just adds visual noise. Hide aux chips during a running timer.
-  const auxChips = isRunning ? [] : chips.filter(chip => chip.id !== 'timer')
+  const auxChips = chips.filter(chip => chip.id !== 'timer')
 
   return (
     <div className="studydesk-notch-idle" aria-label="StudyDesk live activity" title={liveStatus}>
@@ -36,7 +33,7 @@ export function NotchIdle({
         onClick={onTimerClick}
       />
       {auxChips.map(chip => (
-        <span key={chip.id} className={`studydesk-notch-chip ${chip.id}`} title={chip.label}>
+        <span key={chip.id} className={`studydesk-notch-chip ${chip.id}`}>
           {chip.label}
         </span>
       ))}
