@@ -18,8 +18,10 @@ import {
   List, ListOrdered, ListChecks,
   Quote, Code, Minus, Type,
   Sparkles, AlertCircle, Info, BookMarked, Hash, MessageSquare,
+  Database, Network,
   type LucideIcon,
 } from 'lucide-react'
+import { DATA_BLOCK_SCHEMAS, type DataBlockKind } from './dataBlockNode'
 
 export type SlashCategory = 'basic' | 'block' | 'callout' | 'advanced'
 
@@ -297,6 +299,42 @@ export const SLASH_ITEMS: SlashItem[] = [
           quote: 'Type the quoted passage…',
         })
         .run()
+    },
+  },
+
+  // Typed data block (XWiki XObjects pattern)
+  {
+    id: 'data-block',
+    title: 'Data block',
+    description: 'Typed record — paper, lecture, concept, or person',
+    icon: Database,
+    category: 'advanced',
+    keywords: ['data', 'record', 'paper', 'lecture', 'concept', 'person', 'metadata'],
+    command: ({ editor, range }) => {
+      const kindRaw = window.prompt('Type (paper / lecture / concept / person):', 'concept') ?? ''
+      const kind = (['paper', 'lecture', 'concept', 'person'].includes(kindRaw.toLowerCase())
+        ? kindRaw.toLowerCase()
+        : 'concept') as DataBlockKind
+      const title = window.prompt(`Title for this ${kind}:`) ?? ''
+      if (!title.trim()) return
+      const fields: Record<string, string> = {}
+      for (const key of DATA_BLOCK_SCHEMAS[kind]) {
+        const v = window.prompt(`${key}:`, '') ?? ''
+        if (v.trim()) fields[key] = v.trim()
+      }
+      editor.chain().focus().deleteRange(range).insertDataBlock({ kind, title: title.trim(), fields }).run()
+    },
+  },
+  // Drawio diagram embed (BookStack pattern)
+  {
+    id: 'diagram',
+    title: 'Diagram',
+    description: 'Drawio diagram — opens embed.diagrams.net editor',
+    icon: Network,
+    category: 'advanced',
+    keywords: ['diagram', 'drawio', 'flowchart', 'graph', 'sketch'],
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).insertDiagram({}).run()
     },
   },
 ]

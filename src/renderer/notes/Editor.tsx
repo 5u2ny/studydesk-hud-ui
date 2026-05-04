@@ -11,6 +11,8 @@ import { SourceQuote } from './editor/sourceQuoteNode'
 import { NoteLink, createNoteLinkSuggestionExtension } from './editor/noteLink'
 import { NoteLinkPopup, type NoteLinkPopupHandle } from './editor/NoteLinkPopup'
 import { Footnote } from './editor/footnoteNode'
+import { DataBlock } from './editor/dataBlockNode'
+import { Diagram } from './editor/diagramNode'
 import { InlineComment } from './editor/inlineCommentMark'
 import { WritingModes } from './editor/writingModes'
 import { ResizableImage, fileToDataUrl } from './editor/imageResize'
@@ -157,7 +159,7 @@ export function Editor({ note, captures, onUpdate }: Props) {
   }), [note.id])
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline, SourceQuote, NoteLink, Footnote, InlineComment, WritingModes, ResizableImage, noteLinkExtension, slashExtension],
+    extensions: [StarterKit, Underline, SourceQuote, NoteLink, Footnote, DataBlock, Diagram, InlineComment, WritingModes, ResizableImage, noteLinkExtension, slashExtension],
     content: parseContent(note.content),
     onUpdate: ({ editor }) => {
       const json = JSON.stringify(editor.getJSON())

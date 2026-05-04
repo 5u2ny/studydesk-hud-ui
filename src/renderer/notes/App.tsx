@@ -5,6 +5,7 @@ import { FileDropZone } from './components/FileDropZone'
 import { DailyJournalView } from './components/DailyJournalView'
 import { ScanSyllabusDropZone } from './components/ScanSyllabusDropZone'
 import { RelationMapView } from './components/RelationMapView'
+import { TimelineView } from './components/TimelineView'
 import { filterItems } from '@shared/lib/filterDsl'
 import { lintNotes, summarizeIssues, type LintIssue } from './lib/noteHealth'
 import {
@@ -111,7 +112,7 @@ interface QuizQuestionDraft {
   question: string
 }
 
-type WorkspaceTool = 'today' | 'dashboard' | 'daily' | 'quiz' | 'flashcards' | 'assignment' | 'syllabus' | 'class' | 'map'
+type WorkspaceTool = 'today' | 'dashboard' | 'daily' | 'quiz' | 'flashcards' | 'assignment' | 'syllabus' | 'class' | 'map' | 'timeline'
 type QuickAddKind = 'course' | 'deadline' | 'note' | 'assignment' | 'syllabus' | 'study' | 'question'
 
 interface QuickAddForm {
@@ -153,6 +154,31 @@ function noteText(content: string): string {
   }
 }
 
+/** Count how many notes embed a sourceQuote pointing at the given path.
+ *  DokuWiki-style backref: walks each note's TipTap JSON for sourceQuote
+ *  nodes whose sourcePath attr matches. A note that embeds the same
+ *  source twice still counts as one note. */
+function countMaterialUsages(notes: Note[], materialPath: string): number {
+  if (!materialPath) return 0
+  let count = 0
+  for (const note of notes) {
+    let json: any
+    try { json = JSON.parse(note.content) } catch { continue }
+    let found = false
+    const walk = (n: any) => {
+      if (found || !n) return
+      if (n.type === 'sourceQuote' && n.attrs?.sourcePath === materialPath) {
+        found = true
+        return
+      }
+      if (Array.isArray(n.content)) n.content.forEach(walk)
+    }
+    walk(json)
+    if (found) count++
+  }
+  return count
+}
+
 function firstUsefulLine(text: string): string {
   return text.split(/[.\n]/).map(s => s.trim()).find(s => s.length > 8)?.slice(0, 140) ?? 'Review this concept'
 }
@@ -184,7 +210,7 @@ function defaultQuickAddForm(kind: QuickAddKind, selectedText = ''): QuickAddFor
 
 function initialWorkspaceTool(): WorkspaceTool {
   const tool = new URLSearchParams(window.location.search).get('tool')
-  return tool === 'dashboard' || tool === 'daily' || tool === 'quiz' || tool === 'flashcards' || tool === 'assignment' || tool === 'syllabus' || tool === 'class' || tool === 'map'
+  return tool === 'dashboard' || tool === 'daily' || tool === 'quiz' || tool === 'flashcards' || tool === 'assignment' || tool === 'syllabus' || tool === 'class' || tool === 'map' || tool === 'timeline'
     ? tool
     : 'today'
 }
@@ -556,6 +582,7 @@ export default function App() {
     { id: 'syllabus', label: 'Syllabus Import', icon: <FileText size={14} /> },
     { id: 'class', label: 'Class Mode', icon: <GraduationCap size={14} /> },
     { id: 'map', label: 'Map', icon: <Network size={14} /> },
+    { id: 'timeline', label: 'Timeline', icon: <CalendarDays size={14} /> },
   ]
 
   // ── SurfSense-style three-column shell render ─────────────────────────────
@@ -701,14 +728,23 @@ export default function App() {
                 {(selectedCourse.materialsImportedFiles ?? []).filter(r => r.noteId).slice(0, 20).map(r => {
                   const note = notes.find(n => n.id === r.noteId)
                   const fname = r.path.split('/').pop()
+                  // DokuWiki-style backref count: how many notes embed a
+                  // sourceQuote pointing at this material.
+                  const usageCount = countMaterialUsages(notes, r.path)
                   return (
                     <button
                       key={r.path}
                       onClick={note ? () => setSelected(note) : undefined}
                       className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/[0.04] text-left transition-colors"
+                      title={usageCount > 0 ? `Cited in ${usageCount} note${usageCount === 1 ? '' : 's'}` : 'No citations yet'}
                     >
                       <FileText size={11} className="text-white/45 shrink-0" />
                       <span className="flex-1 min-w-0 truncate text-[11.5px] text-white/80">{fname}</span>
+                      {usageCount > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/[0.08] text-white/70 shrink-0 tabular-nums">
+                          {usageCount}×
+                        </span>
+                      )}
                       <span className="text-[9px] text-white/35 shrink-0">{new Date(r.importedAt).toLocaleDateString()}</span>
                     </button>
                   )
@@ -1121,6 +1157,8 @@ function WorkspaceSurface({
       return <ClassModeView currentCourse={currentCourse} captures={captures} confusions={confusions} classSessions={classSessions} onStartClass={onStartClass} onResolveConfusion={onResolveConfusion} onEndClassSession={onEndClassSession} onRefresh={onRefresh} />
     case 'map':
       return <RelationMapView notes={notes} courses={courses} deadlines={deadlines} assignments={assignments} studyItems={studyItems} captures={captures} courseId={currentCourse?.id} onSelectNote={onSelect} />
+    case 'timeline':
+      return <TimelineView notes={notes} deadlines={deadlines} captures={captures} studyItems={studyItems} courses={courses} courseId={currentCourse?.id} onSelectNote={onSelect} />
     case 'today':
     default:
       return <DocumentWorkspace selected={selected} selectedText={selectedText} captures={captures} notes={notes} courses={courses} riverIds={riverIds} currentCourse={currentCourse} linkedAssignment={linkedAssignment} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} onCreateFromFile={onCreateFromFile} onRefresh={onRefresh} onSelect={onSelect} onAddToRiver={onAddToRiver} onRemoveFromRiver={onRemoveFromRiver} />
