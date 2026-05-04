@@ -706,14 +706,14 @@ body {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  /* Spring-eased width expansion (DynamicNotch port).
+  /* Spring-eased width + radius expansion (DynamicNotch port).
      cubic-bezier(0.34, 1.56, 0.64, 1) ≈ SwiftUI .spring(response: 0.42,
      dampingFraction: 0.7) — slight overshoot then settle, the
-     characteristic "snap" of Apple's Dynamic Island. */
-  transition: width 0.42s cubic-bezier(0.34, 1.56, 0.64, 1),
-              transform 80ms ease-out;
+     characteristic "snap" of Apple's Dynamic Island. Width and bottom
+     corner radius morph in sync so the silhouette feels like one
+     fluid swell, not two independent properties.  */
   transform-origin: top center;
-  will-change: width, transform;
+  will-change: width, transform, border-radius;
 }
 
 /* Anchor-top press feedback (DynamicNotch's NotchCustomScaleModifier).
@@ -724,11 +724,33 @@ body {
   transform: scale(1.025);
 }
 
-/* Expanded shell (hover or popover): grow to full bar width */
+/* Expanded shell (hover or popover): grow to full bar width.
+ *
+ * Port of NotchShape.swift's dual-radius silhouette: a wider notch should
+ * read as "the bezel notch swelling out" rather than "a rounded rect
+ * floating below the screen". When expanded, the bottom corners bulge
+ * (convex, larger radius) while the top stays flush-flat against the
+ * hardware bezel. The transition uses the same spring as the width
+ * transition so corners and width morph in sync.
+ */
 .studydesk-notch-shell:hover,
 .studydesk-notch-shell.is-hover-dock,
 .studydesk-notch-shell.is-expanded {
   width: calc(var(--notch-wing-width) + var(--physical-notch-width) + var(--notch-wing-width));
+  border-radius: 0 0 14px 14px;
+}
+
+.studydesk-notch-shell.is-expanded {
+  /* Active popover: bulge a bit more so it reads as a single object with
+   * the popover beneath. Matches DynamicNotch's expandLiveActivity radius. */
+  border-radius: 0 0 18px 18px;
+}
+
+/* Spring-eased width + radius transition; transform stays snappy for press feedback */
+.studydesk-notch-shell {
+  transition: width 0.42s cubic-bezier(0.34, 1.56, 0.64, 1),
+              border-radius 0.42s cubic-bezier(0.34, 1.56, 0.64, 1),
+              transform 80ms ease-out;
 }
 
 /* Left wing: timer / idle chips -- collapsed until shell expands */
