@@ -1207,6 +1207,25 @@ function DocumentWorkspace({
   const [questionStatus, setQuestionStatus] = useState('')
   // Attic revisions UI (DokuWiki port)
   const [showRevisions, setShowRevisions] = useState(false)
+  // UX: collapse the noisy export/history/delete row behind a single
+  // "More" menu so the document header is breathable. Inline buttons
+  // remain only for actions that are contextual (Create question on
+  // selection) or genuinely primary (+ Subpage).
+  const [showMore, setShowMore] = useState(false)
+  const moreMenuRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!showMore) return
+    const onDoc = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setShowMore(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowMore(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [showMore])
   const [revisions, setRevisions] = useState<Array<{ timestamp: number; size: number; title: string }>>([])
   useEffect(() => {
     if (!showRevisions || !selected) { setRevisions([]); return }
@@ -1412,46 +1431,69 @@ function DocumentWorkspace({
             )}
             {selectedText && <button onClick={createQuestionFromDoc}>Create question</button>}
             <button onClick={createSubpage} title="Add a subpage under this note">+ Subpage</button>
-            <button
-              onClick={async () => {
-                if (!selected) return
-                try {
-                  const json = JSON.parse(selected.content)
-                  const { tipTapJsonToMarkdown } = await import('./lib/exportMarkdown')
-                  const md = tipTapJsonToMarkdown(json)
-                  await ipc.invoke('notes:exportMarkdown', { title: selected.title || 'note', markdown: md })
-                } catch (err) {
-                  console.warn('[exportMarkdown]', err)
-                }
-              }}
-              title="Export this note as a .md file"
-            >
-              Export .md
-            </button>
-            <button
-              onClick={async () => {
-                if (!selected) return
-                try { await ipc.invoke('notes:exportPdf', { noteId: selected.id }) }
-                catch (err) { console.warn('[exportPdf]', err) }
-              }}
-              title="Export this note as a PDF file"
-            >
-              Export PDF
-            </button>
-            <button
-              onClick={async () => {
-                if (!selected) return
-                try { await ipc.invoke('notes:exportSlides', { noteId: selected.id }) }
-                catch (err) { console.warn('[exportSlides]', err) }
-              }}
-              title="Export this note as a reveal.js slide deck (split on horizontal rules)"
-            >
-              Slides
-            </button>
-            <button onClick={() => setShowRevisions(true)} title="View revision history (last 50 saves)">
-              History
-            </button>
-            <button onClick={() => onDelete(selected.id)}>Delete</button>
+            {/* Collapsed overflow: export / history / delete. Keeps the
+                document header lean — most users export rarely and never
+                want a one-click Delete next to their primary actions. */}
+            <div className="document-more-menu" ref={moreMenuRef}>
+              <button
+                onClick={() => setShowMore(v => !v)}
+                aria-haspopup="menu"
+                aria-expanded={showMore}
+                title="More actions"
+              >
+                More <ChevronRight size={11} style={{ transform: showMore ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 120ms' }} />
+              </button>
+              {showMore && (
+                <div className="document-more-popover" role="menu">
+                  <button
+                    role="menuitem"
+                    onClick={async () => {
+                      setShowMore(false)
+                      if (!selected) return
+                      try {
+                        const json = JSON.parse(selected.content)
+                        const { tipTapJsonToMarkdown } = await import('./lib/exportMarkdown')
+                        const md = tipTapJsonToMarkdown(json)
+                        await ipc.invoke('notes:exportMarkdown', { title: selected.title || 'note', markdown: md })
+                      } catch (err) { console.warn('[exportMarkdown]', err) }
+                    }}
+                  >Export .md</button>
+                  <button
+                    role="menuitem"
+                    onClick={async () => {
+                      setShowMore(false)
+                      if (!selected) return
+                      try { await ipc.invoke('notes:exportPdf', { noteId: selected.id }) }
+                      catch (err) { console.warn('[exportPdf]', err) }
+                    }}
+                  >Export PDF</button>
+                  <button
+                    role="menuitem"
+                    onClick={async () => {
+                      setShowMore(false)
+                      if (!selected) return
+                      try { await ipc.invoke('notes:exportSlides', { noteId: selected.id }) }
+                      catch (err) { console.warn('[exportSlides]', err) }
+                    }}
+                  >Export as slides</button>
+                  <button
+                    role="menuitem"
+                    onClick={() => { setShowMore(false); setShowRevisions(true) }}
+                  >Version history…</button>
+                  <div className="document-more-divider" role="separator" />
+                  <button
+                    role="menuitem"
+                    className="is-destructive"
+                    onClick={() => {
+                      setShowMore(false)
+                      if (selected && window.confirm(`Delete "${selected.title || 'Untitled'}"? This cannot be undone.`)) {
+                        onDelete(selected.id)
+                      }
+                    }}
+                  >Delete note</button>
+                </div>
+              )}
+            </div>
             {questionStatus && <em>{questionStatus}</em>}
           </div>
           <Editor
@@ -1551,7 +1593,14 @@ function DocumentWorkspace({
         </>
       ) : (
         <div className="notes-empty">
-          <p>No document selected</p>
+          <div className="notes-empty-hero">
+            <h2>Pick up where you left off</h2>
+            <p>
+              Open a note from the sidebar, drop in a PDF or syllabus, or
+              start a fresh page. Hit <kbd>/</kbd> in any note for blocks,
+              <kbd>[[</kbd> to link to another note.
+            </p>
+          </div>
           <FileDropZone
             courseId={currentCourse?.id}
             documentType="reading"
@@ -1559,8 +1608,9 @@ function DocumentWorkspace({
             onCreated={() => onRefresh()}
           />
           <div className="notes-empty-actions">
-            <button className="notes-create-btn" onClick={() => onCreate('assignment_prompt')}>Create assignment prompt</button>
-            <button className="notes-create-btn ghost" onClick={() => onCreate('note')}>New blank note</button>
+            <button className="notes-create-btn" onClick={() => onCreate('note')}>New blank note</button>
+            <button className="notes-create-btn ghost" onClick={() => onCreate('daily_entry')}>Today's daily entry</button>
+            <button className="notes-create-btn ghost" onClick={() => onCreate('assignment_prompt')}>Assignment prompt</button>
           </div>
         </div>
       )}

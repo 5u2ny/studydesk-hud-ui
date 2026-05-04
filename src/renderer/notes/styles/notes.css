@@ -3381,3 +3381,92 @@ body {
   color: rgba(255, 255, 255, 0.40);
   text-align: right;
 }
+
+/* === Document header overflow menu (UX cleanup) === */
+.document-more-menu {
+  position: relative;
+  display: inline-block;
+}
+.document-more-menu > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.document-more-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 180px;
+  padding: 4px;
+  background: rgba(20, 20, 26, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.30);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.document-more-popover button[role="menuitem"] {
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 5px;
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 100ms;
+}
+.document-more-popover button[role="menuitem"]:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.document-more-popover button[role="menuitem"].is-destructive {
+  color: #ff7a85;
+}
+.document-more-popover button[role="menuitem"].is-destructive:hover {
+  background: rgba(255, 90, 100, 0.12);
+  color: #ff5e6c;
+}
+.document-more-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 4px 2px;
+}
+
+/* === Improved empty workspace state === */
+.notes-empty-hero {
+  text-align: center;
+  margin-bottom: 18px;
+  padding: 0 24px;
+}
+.notes-empty-hero h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+}
+.notes-empty-hero p {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.55;
+  margin: 0;
+  max-width: 380px;
+  margin-inline: auto;
+}
+.notes-empty-hero kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  margin: 0 2px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1;
+}
