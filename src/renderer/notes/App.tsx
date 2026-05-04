@@ -577,15 +577,18 @@ export default function App() {
     await refresh()
   }
 
+  // Short labels keep all 10 tabs visible at the typical workspace
+  // width without horizontal scroll. Long-form tooltips on each
+  // button (set in WorkspaceShell via `title`) preserve discoverability.
   const tools: Array<{ id: WorkspaceTool; label: string; icon: React.ReactNode }> = [
     { id: 'today', label: 'Today', icon: <PanelTop size={14} /> },
     { id: 'daily', label: 'Daily', icon: <CalendarDays size={14} /> },
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
     { id: 'quiz', label: 'Quiz', icon: <HelpCircle size={14} /> },
-    { id: 'flashcards', label: 'Flashcards', icon: <ClipboardList size={14} /> },
-    { id: 'assignment', label: 'Assignment Parser', icon: <Sparkles size={14} /> },
-    { id: 'syllabus', label: 'Syllabus Import', icon: <FileText size={14} /> },
-    { id: 'class', label: 'Class Mode', icon: <GraduationCap size={14} /> },
+    { id: 'flashcards', label: 'Cards', icon: <ClipboardList size={14} /> },
+    { id: 'assignment', label: 'Parser', icon: <Sparkles size={14} /> },
+    { id: 'syllabus', label: 'Syllabus', icon: <FileText size={14} /> },
+    { id: 'class', label: 'Class', icon: <GraduationCap size={14} /> },
     { id: 'map', label: 'Map', icon: <Network size={14} /> },
     { id: 'timeline', label: 'Timeline', icon: <CalendarDays size={14} /> },
   ]

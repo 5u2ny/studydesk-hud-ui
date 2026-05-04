@@ -18,6 +18,16 @@ import { WritingModes } from './editor/writingModes'
 import { ResizableImage, fileToDataUrl } from './editor/imageResize'
 import { TocDropdown } from './components/TocDropdown'
 import { ipc } from '@shared/ipc-client'
+import {
+  Bold as IconBold,
+  Italic as IconItalic,
+  Underline as IconUnderline,
+  Heading2 as IconH2,
+  List as IconList,
+  Quote as IconQuote,
+  Type as IconType,
+  Focus as IconFocus,
+} from 'lucide-react'
 export { parseContent }
 
 interface Props {
@@ -248,35 +258,57 @@ export function Editor({ note, captures, onUpdate }: Props) {
   return (
     <div className="notes-editor-wrap">
       <div className="notes-toolbar">
-        <button className={`notes-tool-btn ${editor?.isActive('bold') ? 'active' : ''}`}
-          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBold().run() }}>B</button>
-        <button className={`notes-tool-btn ${editor?.isActive('italic') ? 'active' : ''}`}
-          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleItalic().run() }}>I</button>
-        <button className={`notes-tool-btn ${editor?.isActive('underline') ? 'active' : ''}`}
-          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleUnderline().run() }}>U</button>
+        <button
+          className={`notes-tool-btn ${editor?.isActive('bold') ? 'active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBold().run() }}
+          title="Bold (⌘B)"
+          aria-label="Bold"
+        ><IconBold size={14} /></button>
+        <button
+          className={`notes-tool-btn ${editor?.isActive('italic') ? 'active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleItalic().run() }}
+          title="Italic (⌘I)"
+          aria-label="Italic"
+        ><IconItalic size={14} /></button>
+        <button
+          className={`notes-tool-btn ${editor?.isActive('underline') ? 'active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleUnderline().run() }}
+          title="Underline (⌘U)"
+          aria-label="Underline"
+        ><IconUnderline size={14} /></button>
         <span className="notes-tool-sep" />
-        <button className={`notes-tool-btn ${editor?.isActive('heading', { level: 2 }) ? 'active' : ''}`}
-          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleHeading({ level: 2 }).run() }}>H2</button>
-        <button className={`notes-tool-btn ${editor?.isActive('bulletList') ? 'active' : ''}`}
-          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBulletList().run() }}>• list</button>
-        <button className={`notes-tool-btn ${editor?.isActive('blockquote') ? 'active' : ''}`}
-          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBlockquote().run() }}>"</button>
+        <button
+          className={`notes-tool-btn ${editor?.isActive('heading', { level: 2 }) ? 'active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleHeading({ level: 2 }).run() }}
+          title="Heading 2"
+          aria-label="Heading 2"
+        ><IconH2 size={14} /></button>
+        <button
+          className={`notes-tool-btn ${editor?.isActive('bulletList') ? 'active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBulletList().run() }}
+          title="Bullet list"
+          aria-label="Bullet list"
+        ><IconList size={14} /></button>
+        <button
+          className={`notes-tool-btn ${editor?.isActive('blockquote') ? 'active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBlockquote().run() }}
+          title="Blockquote"
+          aria-label="Blockquote"
+        ><IconQuote size={14} /></button>
         <span className="notes-tool-sep" />
         {/* Writing modes (MarkText port): caret-locked centering + dim siblings */}
         <button
           className={`notes-tool-btn ${editor?.storage.writingModes?.typewriter ? 'active' : ''}`}
           onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleTypewriter().run() }}
           title="Typewriter mode: caret stays vertically centered"
-        >
-          ⌨
-        </button>
+          aria-label="Typewriter mode"
+        ><IconType size={14} /></button>
         <button
           className={`notes-tool-btn ${editor?.storage.writingModes?.focus ? 'active' : ''}`}
           onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleFocusMode().run() }}
           title="Focus mode: dim non-active paragraphs"
-        >
-          ◉
-        </button>
+          aria-label="Focus mode"
+        ><IconFocus size={14} /></button>
         <span className="notes-tool-sep" />
         <TocDropdown noteContent={note.content} />
       </div>

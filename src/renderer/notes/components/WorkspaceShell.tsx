@@ -301,14 +301,20 @@ export function MainPanel({ tabs, activeTabId, onTabSelect, rightActions, childr
                 onClick={() => onTabSelect(tab.id)}
                 title={tab.label}
                 className={cn(
-                  'flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium whitespace-nowrap shrink-0',
+                  // Compact: gap-1 + px-1.5 + 11px font fits all 10 tabs
+                  // at the typical workspace width without overflow.
+                  // Inactive tabs hide the icon to save horizontal space —
+                  // the active tab gets its icon as a visual anchor.
+                  'flex items-center gap-1 h-7 px-1.5 rounded-md text-[11px] font-medium whitespace-nowrap shrink-0',
                   'transition-all duration-150',
                   active
-                    ? 'bg-white/[0.08] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
+                    ? 'bg-white/[0.08] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] px-2'
                     : 'text-white/55 hover:text-white/90 hover:bg-white/[0.04]'
                 )}
               >
-                <span className="shrink-0">{tab.icon}</span>
+                {/* Show icon only for active tab — saves horizontal
+                    space so all 10 tabs fit on a default-width window. */}
+                {active && <span className="shrink-0">{tab.icon}</span>}
                 <span>{tab.label}</span>
               </button>
             )
