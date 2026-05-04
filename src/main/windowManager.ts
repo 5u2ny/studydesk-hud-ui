@@ -120,26 +120,12 @@ export class WindowManager {
       }
     };
 
+    // The HUD is now created lazily by the user (Cmd+Shift+P or tray),
+    // so when ready-to-show fires we DO want it visible — that's the
+    // user explicitly invoking the panel.
     win.once('ready-to-show', () => {
-      // One-time show + native subclass so AppKit positions the panel
-      // and notch_helper takes effect, then immediately hide so the HUD
-      // doesn't paint over the user's screen. Cmd+Shift+Space (handled
-      // in src/main/index.ts) toggles it on; the tray menu also has a
-      // "Show" item. Use both setOpacity(0) and hide() because some
-      // panel types ignore hide() under setVisibleOnAllWorkspaces.
-      win.show();
-      applyNotchPanel();
-      setTimeout(() => {
-        if (win.isDestroyed()) return
-        win.setOpacity(0)
-        win.hide()
-      }, 50)
-    })
-
-    // Whenever the user toggles the HUD on, restore opacity (the initial
-    // hide left it at 0). Idempotent — no-op once opacity is back to 1.
-    win.on('show', () => {
-      if (!win.isDestroyed() && win.getOpacity() < 1) win.setOpacity(1)
+      win.show()
+      applyNotchPanel()
     })
     // Forward renderer console + crash diagnostics to the terminal log.
     win.webContents.on('console-message', (_e, level, msg, line, src) => {

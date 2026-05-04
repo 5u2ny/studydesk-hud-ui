@@ -63,9 +63,16 @@ app.whenReady().then(async () => {
   console.log('[main] IPC handlers registered');
 
   // ── Windows ────────────────────────────────────────────────────────────
-  windowManager.createFloatingWindow();
+  // Floating HUD is opt-in: don't create it at startup. The user opens
+  // the workspace window for everything visual; Cmd+Shift+P brings the
+  // HUD up on demand and creates it lazily. This is what the user
+  // requested — "no matter what get rid of the HUD" — so the only path
+  // that paints the always-on-top notch panel is an explicit toggle.
   windowManager.createFreezeWindows();
   windowManager.createTray();
+  // Open the workspace window directly so launching the app gives the
+  // user something useful instead of an empty screen.
+  windowManager.openNotesWindow();
 
   // ── Optional experimental tracking / strict mode ──────────────────────
   if (settings.experimentalFeatures?.activityClassifier || settings.experimentalFeatures?.strictMode) {
@@ -78,10 +85,12 @@ app.whenReady().then(async () => {
     windowManager.sendToFloating('timer:toggle', undefined);
   });
 
-  // Pill toggle
+  // Pill toggle — lazily creates the floating HUD on first use so the
+  // app starts without any always-on-top panel painted to the screen.
   globalShortcut.register('CommandOrControl+Shift+P', () => {
-    const win = windowManager.floatingWindow;
-    if (win) win.isVisible() ? win.hide() : win.show();
+    let win = windowManager.floatingWindow;
+    if (!win || win.isDestroyed()) win = windowManager.createFloatingWindow();
+    win.isVisible() ? win.hide() : win.show();
   });
 
   // Notes window toggle (open the persistent desktop doc from anywhere)
