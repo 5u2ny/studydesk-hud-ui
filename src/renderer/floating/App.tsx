@@ -43,7 +43,7 @@ import {
 } from 'lucide-react'
 // Hand-crafted SF-Symbols-style icons — crisp at 14–16px, no third-
 // party glyph library, matches macOS 26 menu-bar aesthetic.
-import { IconTarget, IconCalendar, IconGear, IconCourses } from './notch/SFIcons'
+import { IconTarget, IconCalendar, IconGear, IconCourses, IconBookmark, IconTimer } from './notch/SFIcons'
 
 const PHASE_RGB: Record<TimerPhase, [number, number, number]> = {
   focus: [255, 77, 77],
@@ -421,11 +421,14 @@ export default function App() {
   })
 
   // Right-wing dock — four SF-Symbols-style icons, visible on hover.
+  // Each one maps to a popover that's actually useful from the notch
+  // (i.e. things you want to do without opening the full workspace).
+  // Courses + full settings live in the workspace — no point duplicating.
   const dockItems: NotchDockItem[] = [
-    { id: 'today',     label: 'Today',     title: 'What needs attention now',       icon: <IconTarget size={14} /> },
-    { id: 'courses',   label: 'Courses',   title: 'Organize work by class',         icon: <IconCourses size={14} /> },
-    { id: 'deadlines', label: 'Deadlines', title: 'Due work, not calendar clutter', icon: <IconCalendar size={14} />, badge: badges.deadlines },
-    { id: 'settings',  label: 'Settings',  title: 'HUD controls and preferences',   icon: <IconGear size={14} /> },
+    { id: 'today',     label: 'Today',     title: 'What needs attention now',          icon: <IconTarget size={14} /> },
+    { id: 'capture',   label: 'Capture',   title: 'Drop a thought into the queue',     icon: <IconBookmark size={14} />, badge: badges.capture },
+    { id: 'timer',     label: 'Timer',     title: 'Pomodoro durations and controls',   icon: <IconTimer size={14} /> },
+    { id: 'deadlines', label: 'Deadlines', title: 'Due work, not calendar clutter',    icon: <IconCalendar size={14} />, badge: badges.deadlines },
   ]
 
   const PopoverContent = () => {
@@ -567,25 +570,56 @@ export default function App() {
             </CompactList>
           </PopoverPanel>
         )
-      case 'settings':
+      case 'timer': {
+        const settings = state?.settings
+        const remainingMin = state ? Math.max(0, Math.ceil(state.remainingSeconds / 60)) : 0
+        const phaseTotalMin = state ? Math.round(state.totalSeconds / 60) : 0
         return (
-          <PopoverPanel title="Settings" subtitle="HUD controls and preferences">
-            <div className="island-settings-grid">
-              <button onClick={openSettingsPanel}>
-                <Clock3 size={16} />
-                <span>Timer settings</span>
-              </button>
-              <button onClick={openSettingsPanel}>
-                <Bookmark size={16} />
-                <span>Capture settings</span>
-              </button>
-              <button onClick={openSettingsPanel}>
-                <IconGear size={16} />
-                <span>Full settings</span>
+          <PopoverPanel title="Timer" subtitle="Pomodoro durations and quick controls">
+            <div className="island-hero-row">
+              <div>
+                <p className="student-eyebrow">{state?.phase === 'break' || state?.phase === 'longBreak' ? 'Break phase' : 'Focus phase'}</p>
+                <h2>{remainingMin} min left</h2>
+                <p>{state?.isRunning ? 'Running.' : 'Paused.'} Cycle {state?.cycleCount ?? 0}, phase total {phaseTotalMin} min.</p>
+              </div>
+              <button className="student-primary-action" onClick={handleStartPause}>
+                {state?.isRunning ? 'Pause' : 'Start'} <ArrowRight size={16} />
               </button>
             </div>
+            {settings && (
+              <section className="student-action-strip slim" style={{ flexDirection: 'column', gap: 8 }}>
+                <TimerDurationRow
+                  label="Focus"
+                  minutes={Math.round(settings.focusDuration / 60)}
+                  onChange={(m) => window.focusAPI.saveSettings({ ...settings, focusDuration: m * 60 })}
+                  min={5} max={90}
+                />
+                <TimerDurationRow
+                  label="Short break"
+                  minutes={Math.round(settings.breakDuration / 60)}
+                  onChange={(m) => window.focusAPI.saveSettings({ ...settings, breakDuration: m * 60 })}
+                  min={1} max={30}
+                />
+                <TimerDurationRow
+                  label="Long break"
+                  minutes={Math.round(settings.longBreakDuration / 60)}
+                  onChange={(m) => window.focusAPI.saveSettings({ ...settings, longBreakDuration: m * 60 })}
+                  min={5} max={60}
+                />
+                <TimerDurationRow
+                  label="Cycles before long"
+                  minutes={settings.cyclesBeforeLongBreak}
+                  unit=""
+                  onChange={(n) => window.focusAPI.saveSettings({ ...settings, cyclesBeforeLongBreak: n })}
+                  min={2} max={8}
+                />
+              </section>
+            )}
           </PopoverPanel>
         )
+      }
+      case 'settings':
+        return null
       default:
         return null
     }
@@ -658,6 +692,32 @@ function DeadlineRow({ d, onComplete }: { d: AcademicDeadline; onComplete: () =>
         <Check size={14} /> Done
       </button>
     </article>
+  )
+}
+
+// Inline +/− stepper for the Timer popover. Saves immediately so the change
+// reflects on the next phase boundary (timer engine reads settings each tick).
+function TimerDurationRow({
+  label, minutes, onChange, min, max, unit = 'min',
+}: {
+  label: string
+  minutes: number
+  onChange: (next: number) => void
+  min: number
+  max: number
+  unit?: string
+}) {
+  const dec = () => onChange(Math.max(min, minutes - 1))
+  const inc = () => onChange(Math.min(max, minutes + 1))
+  return (
+    <div className="island-timer-row">
+      <span className="island-timer-row-label">{label}</span>
+      <div className="island-timer-row-controls">
+        <button onClick={dec} disabled={minutes <= min} aria-label={`Decrease ${label}`}>−</button>
+        <span className="island-timer-row-value">{minutes}{unit ? ` ${unit}` : ''}</span>
+        <button onClick={inc} disabled={minutes >= max} aria-label={`Increase ${label}`}>+</button>
+      </div>
+    </div>
   )
 }
 

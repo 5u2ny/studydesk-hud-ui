@@ -85,6 +85,63 @@ export function IconCourses({ size = 14, className }: IconProps) {
   )
 }
 
+// Bookmark / capture (notes capture quick action) — SF bookmark.fill
+export function IconBookmark({ size = 14, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M3.6 1.5h8.8a.7.7 0 0 1 .7.7v12.05a.55.55 0 0 1-.86.46L8 11.6l-4.24 3.11a.55.55 0 0 1-.86-.46V2.2a.7.7 0 0 1 .7-.7Z" />
+    </svg>
+  )
+}
+
+// Timer / stopwatch (Pomodoro settings) — SF timer / stopwatch.fill hybrid
+export function IconTimer({ size = 14, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+      className={className}
+    >
+      <path
+        d="M6 1.5h4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M11.4 4.2l1-1"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle
+        cx="8"
+        cy="9.4"
+        r="5.4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M8 6.4v3l2 1.4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 // Gear (Settings) — SF gearshape.fill silhouette
 export function IconGear({ size = 14, className }: IconProps) {
   return (

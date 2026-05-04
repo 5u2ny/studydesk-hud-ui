@@ -1,12 +1,13 @@
 import type { AcademicDeadline, AttentionAlert, Capture, StudyItem } from '@schema'
 
-export type NotchFeatureId = 'today' | 'courses' | 'deadlines' | 'capture' | 'study' | 'alerts' | 'workspace' | 'settings'
+export type NotchFeatureId = 'today' | 'courses' | 'deadlines' | 'capture' | 'study' | 'alerts' | 'workspace' | 'timer' | 'settings'
 
 export const NOTCH_FEATURE_ORDER: NotchFeatureId[] = [
   'today',
-  'courses',
-  'deadlines',
   'capture',
+  'timer',
+  'deadlines',
+  'courses',
   'study',
   'alerts',
   'workspace',
