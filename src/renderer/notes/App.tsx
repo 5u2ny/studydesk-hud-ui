@@ -5,6 +5,7 @@ import { FileDropZone } from './components/FileDropZone'
 import { DailyJournalView } from './components/DailyJournalView'
 import { ScanSyllabusDropZone } from './components/ScanSyllabusDropZone'
 import { RelationMapView } from './components/RelationMapView'
+import { filterItems } from '@shared/lib/filterDsl'
 import {
   ShellContainer,
   IconRail,
@@ -350,15 +351,28 @@ export default function App() {
   const byCourse = <T extends { courseId?: string }>(items: T[]) =>
     selectedCourseId ? items.filter(i => i.courseId === selectedCourseId) : items
 
-  // Apply text search filter (matches title or content) across notes/captures
-  const matchesSearch = (text: string) =>
-    searchQuery.trim().length === 0 ||
-    text.toLowerCase().includes(searchQuery.trim().toLowerCase())
-
-  const visibleNotes = byCourse(notes).filter(n =>
-    matchesSearch(`${n.title} ${n.content}`)
+  // Filter DSL (TiddlyWiki port): when the user types `[tag[x]...]` the
+  // query becomes a structured filter; otherwise falls back to plain
+  // substring search across title + content. The same DSL is used for
+  // captures by adapting Capture → FilterableItem (text→content).
+  const visibleNotes = useMemo(
+    () => filterItems(byCourse(notes), searchQuery, courses),
+    [notes, searchQuery, selectedCourseId, courses]
   )
-  const visibleCaptures = byCourse(captures).filter(c => matchesSearch(c.text))
+  const visibleCaptures = useMemo(() => {
+    const adapter = byCourse(captures).map(c => ({
+      id: c.id,
+      title: c.text.slice(0, 80),
+      content: c.text,
+      courseId: c.courseId,
+      tags: c.labels ?? [],
+      documentType: c.source,
+      updatedAt: c.createdAt,
+      createdAt: c.createdAt,
+      __orig: c,
+    }))
+    return filterItems(adapter, searchQuery, courses).map(a => (a as any).__orig as typeof captures[number])
+  }, [captures, searchQuery, selectedCourseId, courses])
   const visibleAssignments = byCourse(assignments)
   const visibleDeadlines = byCourse(deadlines)
   const visibleStudyItems = byCourse(studyItems)
@@ -1100,6 +1114,57 @@ function DocumentWorkspace({
     return notes.filter(n => n.parentId === selected.id)
   }, [notes, selected])
 
+  // Inline comments (suitenumerique/docs port): collected by walking
+  // the TipTap JSON for spans with the inlineComment mark. Each entry
+  // is { id, text, quote } where quote is the underlying selected text.
+  const inlineComments = useMemo(() => {
+    if (!selected?.content) return [] as Array<{ id: string; text: string; quote: string }>
+    try {
+      const json = JSON.parse(selected.content)
+      const seen = new Set<string>()
+      const out: Array<{ id: string; text: string; quote: string }> = []
+      const walk = (node: any, parentText = '') => {
+        if (!node) return
+        // Marks live on text nodes
+        if (node.type === 'text' && Array.isArray(node.marks)) {
+          for (const m of node.marks) {
+            if (m?.type === 'inlineComment' && m.attrs?.commentId && !seen.has(m.attrs.commentId)) {
+              seen.add(m.attrs.commentId)
+              out.push({
+                id: m.attrs.commentId,
+                text: m.attrs.text ?? '',
+                quote: node.text ?? parentText,
+              })
+            }
+          }
+        }
+        if (Array.isArray(node.content)) node.content.forEach((c: any) => walk(c, node.text ?? parentText))
+      }
+      walk(json)
+      return out
+    } catch { return [] }
+  }, [selected?.content])
+
+  // Footnotes (MediaWiki port): collected in document order from the
+  // current note's TipTap JSON so the list numbering matches the
+  // CSS-counter superscript numbering inside the editor.
+  const footnotes = useMemo(() => {
+    if (!selected?.content) return [] as string[]
+    try {
+      const json = JSON.parse(selected.content)
+      const out: string[] = []
+      const walk = (node: any) => {
+        if (!node) return
+        if (node.type === 'footnote' && typeof node.attrs?.content === 'string') {
+          out.push(node.attrs.content)
+        }
+        if (Array.isArray(node.content)) node.content.forEach(walk)
+      }
+      walk(json)
+      return out
+    } catch { return [] }
+  }, [selected?.content])
+
   const createSubpage = useCallback(async () => {
     if (!selected) return
     const note = await ipc.invoke<Note>('notes:create', { title: 'Untitled subpage', content: '' })
@@ -1158,6 +1223,31 @@ function DocumentWorkspace({
             captures={captures}
             onUpdate={(patch) => onUpdate(selected.id, patch)}
           />
+          {inlineComments.length > 0 && (
+            <section className="document-comments" aria-label="Inline comments">
+              <header><span>Comments</span><em>{inlineComments.length}</em></header>
+              <ul>
+                {inlineComments.map(c => (
+                  <li key={c.id}>
+                    <div className="comment-quote">"{c.quote.slice(0, 80)}{c.quote.length > 80 ? '…' : ''}"</div>
+                    <div className="comment-body">{c.text}</div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {footnotes.length > 0 && (
+            <section className="document-footnotes" aria-label="Footnotes">
+              <header><span>Footnotes</span><em>{footnotes.length}</em></header>
+              <ol>
+                {footnotes.map((text, i) => (
+                  <li key={i} id={`footnote-${i + 1}`}>
+                    <span className="footnote-text">{text}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           {children.length > 0 && (
             <section className="document-subpages" aria-label="Subpages of this note">
               <header><span>Subpages</span><em>{children.length}</em></header>

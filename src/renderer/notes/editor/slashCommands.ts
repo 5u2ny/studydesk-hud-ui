@@ -17,7 +17,7 @@ import {
   Heading1, Heading2, Heading3,
   List, ListOrdered, ListChecks,
   Quote, Code, Minus, Type,
-  Sparkles, AlertCircle, Info, BookMarked,
+  Sparkles, AlertCircle, Info, BookMarked, Hash, MessageSquare,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -201,6 +201,60 @@ export const SLASH_ITEMS: SlashItem[] = [
     command: ({ editor, range }) => {
       // Inserts an H2 — flashcardSyncService picks up H2s as card fronts
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run()
+    },
+  },
+  {
+    id: 'inline-comment',
+    title: 'Inline comment',
+    description: 'Highlight a passage with a self-review note',
+    icon: MessageSquare,
+    category: 'advanced',
+    keywords: ['comment', 'annotate', 'note', 'review', 'highlight'],
+    command: ({ editor, range }) => {
+      // The slash trigger removes the just-typed `/comment` text. The
+      // user typically selected the passage before triggering, so we
+      // remember the prior selection on a hidden state field, then
+      // wrap that range with the mark.
+      // To keep this minimal: prompt for comment text, then if there
+      // was a non-empty selection BEFORE the slash (saved in window.__lastSelection)
+      // wrap that. Otherwise insert a placeholder span at cursor.
+      const text = window.prompt('Comment:') ?? ''
+      if (!text.trim()) return
+      const commentId = `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
+      // Capture current selection BEFORE deleting the slash trigger; the
+      // delete shrinks the range to a cursor, losing any prior selection.
+      const sel = (window as any).__studydeskLastSelection as { from: number; to: number } | undefined
+      editor.chain().focus().deleteRange(range).run()
+      if (sel && sel.to > sel.from) {
+        editor.chain().focus()
+          .setTextSelection({ from: sel.from, to: sel.to })
+          .setInlineComment({ commentId, text: text.trim() })
+          .run()
+      } else {
+        // No prior selection — insert the comment text inline as the
+        // commented passage so it's still surfaced visually
+        editor.chain().focus().insertContent({
+          type: 'text',
+          text: text.trim(),
+          marks: [{ type: 'inlineComment', attrs: { commentId, text: text.trim() } }],
+        }).run()
+      }
+    },
+  },
+  {
+    id: 'footnote',
+    title: 'Footnote',
+    description: 'Auto-numbered superscript with backref',
+    icon: Hash,
+    category: 'advanced',
+    keywords: ['footnote', 'ref', 'reference', 'cite', 'note'],
+    command: ({ editor, range }) => {
+      // Inserts a placeholder footnote — user edits the text via the
+      // footnote list panel under the editor (or by re-clicking and
+      // editing the data-footnote attr in dev tools).
+      const text = window.prompt('Footnote text:') ?? ''
+      if (!text.trim()) return
+      editor.chain().focus().deleteRange(range).insertFootnote(text.trim()).run()
     },
   },
   {

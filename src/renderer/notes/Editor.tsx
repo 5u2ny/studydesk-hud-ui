@@ -10,6 +10,8 @@ import { SlashCommandPopup, type SlashCommandPopupHandle } from './editor/SlashC
 import { SourceQuote } from './editor/sourceQuoteNode'
 import { NoteLink, createNoteLinkSuggestionExtension } from './editor/noteLink'
 import { NoteLinkPopup, type NoteLinkPopupHandle } from './editor/NoteLinkPopup'
+import { Footnote } from './editor/footnoteNode'
+import { InlineComment } from './editor/inlineCommentMark'
 import { ipc } from '@shared/ipc-client'
 export { parseContent }
 
@@ -152,7 +154,7 @@ export function Editor({ note, captures, onUpdate }: Props) {
   }), [note.id])
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline, SourceQuote, NoteLink, noteLinkExtension, slashExtension],
+    extensions: [StarterKit, Underline, SourceQuote, NoteLink, Footnote, InlineComment, noteLinkExtension, slashExtension],
     content: parseContent(note.content),
     onUpdate: ({ editor }) => {
       const json = JSON.stringify(editor.getJSON())
@@ -167,6 +169,21 @@ export function Editor({ note, captures, onUpdate }: Props) {
 
   // Cleanup debounce on unmount
   useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current) }, [])
+
+  // Track the most-recent non-empty selection on a window global so the
+  // /inline-comment slash command can wrap that range (the slash trigger
+  // collapses the selection by the time the command fires).
+  useEffect(() => {
+    if (!editor) return
+    const onUpdate = () => {
+      const { from, to } = editor.state.selection
+      if (to > from) {
+        (window as any).__studydeskLastSelection = { from, to }
+      }
+    }
+    editor.on('selectionUpdate', onUpdate)
+    return () => { editor.off('selectionUpdate', onUpdate) }
+  }, [editor])
 
   const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     onUpdate({ title: e.target.value })

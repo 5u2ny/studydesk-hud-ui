@@ -32,6 +32,15 @@ export interface Note {
   // to the folder/course taxonomy (a course can contain notes, and any
   // note can have child sub-notes regardless of course).
   parentId?: string;
+  // Inline self-review comments (port from suitenumerique/docs). The
+  // editor wraps the commented passage with an inlineComment mark whose
+  // commentId attribute points at one of these entries.
+  comments?: Array<{
+    id: string;
+    text: string;
+    quote: string;        // verbatim snippet the comment is anchored to
+    createdAt: number;
+  }>;
   tags?: string[];
   capturedFromIds: string[];
   createdAt: number;

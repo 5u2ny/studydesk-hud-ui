@@ -306,6 +306,126 @@ body {
   background: rgba(40, 123, 255, 0.22);
 }
 
+/* ── Inline comments (suitenumerique/docs port) ────────────────────────── */
+.ProseMirror span.inline-comment {
+  position: relative;
+  background: rgba(255, 215, 0, 0.10);
+  border-bottom: 1.5px dotted rgba(255, 215, 0, 0.55);
+  cursor: help;
+  transition: background 0.10s;
+}
+.ProseMirror span.inline-comment:hover {
+  background: rgba(255, 215, 0, 0.20);
+}
+/* Tooltip via attribute on hover */
+.ProseMirror span.inline-comment:hover::after {
+  content: attr(data-comment-text);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 100;
+  width: 280px;
+  padding: 8px 10px;
+  background: rgba(20, 20, 24, 0.96);
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 215, 0, 0.30);
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: normal;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.40);
+}
+
+.document-comments {
+  margin: 18px 32px 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 215, 0, 0.14);
+  background: rgba(255, 215, 0, 0.04);
+}
+.document-comments header {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.document-comments header span { color: rgba(255, 215, 0, 0.85); }
+.document-comments header em { color: rgba(255, 215, 0, 1); font-style: normal; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: rgba(255, 215, 0, 0.20); border: 1px solid rgba(255, 215, 0, 0.36); }
+.document-comments ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.document-comments li { padding: 8px 10px; border-radius: 6px; background: rgba(255, 215, 0, 0.06); border-left: 3px solid rgba(255, 215, 0, 0.45); }
+.comment-quote { font-size: 11.5px; color: rgba(255, 255, 255, 0.55); font-style: italic; margin-bottom: 4px; }
+.comment-body { font-size: 12.5px; color: rgba(255, 255, 255, 0.92); line-height: 1.5; }
+
+/* ── Footnotes (MediaWiki <ref> port) ──────────────────────────────────── */
+/* CSS counter auto-numbers footnote refs in document order */
+.ProseMirror { counter-reset: footnote 0; }
+.ProseMirror sup.footnote-ref {
+  counter-increment: footnote;
+  display: inline-block;
+  margin: 0 1px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(255, 184, 77, 0.16);
+  border: 1px solid rgba(255, 184, 77, 0.28);
+  color: #ffb84d;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  vertical-align: super;
+  text-decoration: none;
+  cursor: help;
+  transition: background 0.10s, color 0.10s;
+}
+.ProseMirror sup.footnote-ref::before { content: "[" counter(footnote) "]"; }
+.ProseMirror sup.footnote-ref:hover { background: rgba(255, 184, 77, 0.30); color: #fff; }
+/* Show the footnote text on hover via the data attribute */
+.ProseMirror sup.footnote-ref { position: relative; }
+.ProseMirror sup.footnote-ref:hover::after {
+  content: attr(data-footnote);
+  position: absolute;
+  left: 0;
+  top: 18px;
+  z-index: 100;
+  width: 280px;
+  padding: 8px 10px;
+  background: rgba(20, 20, 24, 0.96);
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 184, 77, 0.30);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: normal;
+  line-height: 1.5;
+  white-space: normal;
+  text-transform: none;
+  vertical-align: baseline;
+  letter-spacing: 0;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.40);
+}
+
+.document-footnotes {
+  margin: 18px 32px 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 184, 77, 0.14);
+  background: rgba(255, 184, 77, 0.04);
+}
+.document-footnotes header {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.document-footnotes header span { color: rgba(255, 184, 77, 0.85); }
+.document-footnotes header em { color: rgba(255, 184, 77, 1); font-style: normal; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: rgba(255, 184, 77, 0.20); border: 1px solid rgba(255, 184, 77, 0.36); }
+.document-footnotes ol {
+  margin: 0; padding-left: 22px;
+  display: flex; flex-direction: column; gap: 4px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12.5px; line-height: 1.55;
+}
+.document-footnotes ol li::marker { color: rgba(255, 184, 77, 0.65); font-weight: 700; }
+.document-footnotes .footnote-text { color: rgba(255, 255, 255, 0.85); }
+
 /* ── Story river (TiddlyWiki port) — stacked read-only previews ───────── */
 .river-stack {
   margin: 24px 28px 16px;
