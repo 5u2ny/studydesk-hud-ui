@@ -66,15 +66,17 @@ app.whenReady().then(async () => {
   console.log('[main] IPC handlers registered');
 
   // ── Windows ────────────────────────────────────────────────────────────
-  // Floating HUD is opt-in: don't create it at startup. The user opens
-  // the workspace window for everything visual; Cmd+Shift+P brings the
-  // HUD up on demand and creates it lazily. This is what the user
-  // requested — "no matter what get rid of the HUD" — so the only path
-  // that paints the always-on-top notch panel is an explicit toggle.
+  // The notch HUD is the headline feature — it's always created on
+  // launch. The earlier "always appears" complaint was actually caused
+  // by stale Electron processes from prior `npm start` runs piling up
+  // and each painting their own HUD. The fix is dev-side hygiene:
+  //   pkill -9 -f "studydesk-hud-ui/node_modules/electron"
+  // before each `npm start`. The HUD itself stays.
+  windowManager.createFloatingWindow();
   windowManager.createFreezeWindows();
   windowManager.createTray();
-  // Open the workspace window directly so launching the app gives the
-  // user something useful instead of an empty screen.
+  // Also open the workspace window so launching the app gives the user
+  // both the notch AND the persistent doc surface.
   windowManager.openNotesWindow();
 
   // ── Optional experimental tracking / strict mode ──────────────────────
