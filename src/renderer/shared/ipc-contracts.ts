@@ -74,7 +74,13 @@ export interface IPCContracts {
   'deadline:delete': { req: { id: string }; res: void };
   'deadline:complete': { req: { id: string }; res: AcademicDeadline };
   'syllabus:parse': { req: { text: string; courseId?: string; term?: string }; res: unknown };
-  'syllabus:confirmImport': { req: unknown; res: unknown };
+  'syllabus:confirmImport': {
+    req: unknown;
+    res: {
+      courseId?: string;
+      counts?: { assignments: number; deadlines: number; setupAlerts: number };
+    };
+  };
   'class:start': { req: { courseId?: string; title: string }; res: ClassSession };
   'class:update': { req: { id: string; patch: Partial<ClassSession> }; res: ClassSession };
   'class:end': { req: { id: string; patch?: Partial<ClassSession> }; res: ClassSession };

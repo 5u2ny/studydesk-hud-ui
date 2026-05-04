@@ -8,6 +8,7 @@ import { RelationMapView } from './components/RelationMapView'
 import { TimelineView } from './components/TimelineView'
 import { filterItems } from '@shared/lib/filterDsl'
 import { lintNotes, summarizeIssues, type LintIssue } from './lib/noteHealth'
+import { isDuplicateQuestion, isDuplicateFlashcard } from './lib/studyDedup'
 import {
   ShellContainer,
   IconRail,
@@ -1024,6 +1025,7 @@ export default function App() {
           riverIds={riverIds}
           onAddToRiver={addToRiver}
           onRemoveFromRiver={removeFromRiver}
+          onNavigate={setActiveTool}
         />
       </MainPanel>
 
@@ -1108,6 +1110,7 @@ function WorkspaceSurface({
   riverIds,
   onAddToRiver,
   onRemoveFromRiver,
+  onNavigate,
 }: {
   activeTool: WorkspaceTool
   selected: Note | null
@@ -1143,10 +1146,13 @@ function WorkspaceSurface({
   riverIds: string[]
   onAddToRiver: (noteId: string) => void
   onRemoveFromRiver: (noteId: string) => void
+  /** Tab navigation, threaded down so widgets like the dashboard's
+   *  "Review day" button can switch tabs without lifting state. */
+  onNavigate: (tool: WorkspaceTool) => void
 }) {
   switch (activeTool) {
     case 'dashboard':
-      return <DashboardView courses={courses} deadlines={deadlines} studyItems={studyItems} alerts={alerts} onCompleteDeadline={onCompleteDeadline} onResolveAlert={onResolveAlert} />
+      return <DashboardView courses={courses} deadlines={deadlines} studyItems={studyItems} alerts={alerts} onCompleteDeadline={onCompleteDeadline} onResolveAlert={onResolveAlert} onNavigate={onNavigate} />
     case 'daily':
       return <DailyJournalView notes={notes} currentCourse={currentCourse} onUpdate={onUpdate} onRefresh={onRefresh} onSelect={onSelect} />
     case 'quiz':
@@ -1648,18 +1654,34 @@ function DocumentWorkspace({
 function AssignmentParserView({ selected, selectedText, courseId, deadlines, onSave }: { selected: Note | null; selectedText: string; courseId?: string; deadlines: AcademicDeadline[]; onSave: () => void }) {
   const [review, setReview] = useState<AssignmentParseReview | null>(null)
   const [parsing, setParsing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleParse() {
     if (!selectedText) return
     setParsing(true)
+    setError(null)
     try {
       const result = await ipc.invoke<AssignmentParseReview>('assignment:parse', { text: selectedText, courseId, title: selected?.title })
-      setReview(result)
+      // Defensive: parser may return partial. Initialize empty arrays.
+      setReview({
+        title: result?.title ?? selected?.title ?? '',
+        dueDate: result?.dueDate,
+        deliverables: result?.deliverables ?? [],
+        formatRequirements: result?.formatRequirements ?? [],
+        rubricItems: result?.rubricItems ?? [],
+        submissionChecklist: result?.submissionChecklist ?? [],
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Could not parse this assignment: ${msg}`)
     } finally { setParsing(false) }
   }
 
   async function handleSave() {
     if (!review || !selected) return
+    setSaving(true)
+    setError(null)
     const title = review.title.trim() || selected.title || 'Untitled assignment'
     const patch = {
       title,
@@ -1672,29 +1694,33 @@ function AssignmentParserView({ selected, selectedText, courseId, deadlines, onS
       rubricItems: review.rubricItems,
       submissionChecklist: review.submissionChecklist,
     }
-    let assignmentId: string
-    if (selected.linkedAssignmentId) {
-      // Update existing linked assignment
-      const updated = await ipc.invoke<Assignment>('assignment:update', { id: selected.linkedAssignmentId, patch })
-      assignmentId = updated.id
-    } else {
-      // Create new assignment
-      const created = await ipc.invoke<Assignment>('assignment:create', patch)
-      assignmentId = created.id
-      // Link note to assignment
-      await ipc.invoke('notes:update', { id: selected.id, patch: { documentType: 'assignment_prompt', linkedAssignmentId: assignmentId, courseId } })
-    }
-    // Create or update academic deadline from due date
-    if (review.dueDate) {
-      const existing = deadlines.find(d => d.assignmentId === assignmentId || (d.sourceId === selected.id && d.sourceType === 'assignment_prompt'))
-      if (existing) {
-        await ipc.invoke('deadline:update', { id: existing.id, patch: { title: review.title, deadlineAt: review.dueDate, courseId } })
+    try {
+      let assignmentId: string
+      if (selected.linkedAssignmentId) {
+        const updated = await ipc.invoke<Assignment>('assignment:update', { id: selected.linkedAssignmentId, patch })
+        assignmentId = updated.id
       } else {
-        await ipc.invoke('deadline:create', { title: review.title, deadlineAt: review.dueDate, courseId, assignmentId, type: 'assignment', sourceType: 'assignment_prompt', sourceId: selected.id, confirmed: true })
+        const created = await ipc.invoke<Assignment>('assignment:create', patch)
+        assignmentId = created.id
+        await ipc.invoke('notes:update', { id: selected.id, patch: { documentType: 'assignment_prompt', linkedAssignmentId: assignmentId, courseId } })
       }
-    }
-    setReview(null)
-    onSave()
+      if (review.dueDate) {
+        const existing = deadlines.find(d => d.assignmentId === assignmentId || (d.sourceId === selected.id && d.sourceType === 'assignment_prompt'))
+        if (existing) {
+          await ipc.invoke('deadline:update', { id: existing.id, patch: { title: review.title, deadlineAt: review.dueDate, courseId } })
+        } else {
+          await ipc.invoke('deadline:create', { title: review.title, deadlineAt: review.dueDate, courseId, assignmentId, type: 'assignment', sourceType: 'assignment_prompt', sourceId: selected.id, confirmed: true })
+        }
+      }
+      setReview(null)
+      onSave()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      // The assignment may have been created even if the deadline step
+      // failed. Tell the user honestly so they can verify in the
+      // Assignments list before re-saving and creating a duplicate.
+      setError(`Save failed (some changes may have been written): ${msg}`)
+    } finally { setSaving(false) }
   }
 
   return (
@@ -1703,9 +1729,15 @@ function AssignmentParserView({ selected, selectedText, courseId, deadlines, onS
         <div className="parser-tab"><FileText size={15} /> {selected?.title || 'Untitled'}</div>
         {!review
           ? <button className="review-button" onClick={handleParse} disabled={!selectedText || parsing}><Sparkles size={15} /> {parsing ? 'Parsing...' : 'Parse assignment'}</button>
-          : <button className="review-button" onClick={handleSave}><Sparkles size={15} /> Save assignment</button>
+          : <button className="review-button" onClick={handleSave} disabled={saving}><Sparkles size={15} /> {saving ? 'Saving...' : 'Save assignment'}</button>
         }
       </header>
+      {error && (
+        <div className="phase3-error" role="alert">
+          <strong>Something went wrong:</strong> {error}
+          <button onClick={() => setError(null)} aria-label="Dismiss">×</button>
+        </div>
+      )}
       {!selectedText && !review && (
         <EmptyHint message="No document selected" hint="Select a document with assignment text to parse." />
       )}
@@ -1756,6 +1788,7 @@ function DashboardView({
   alerts,
   onCompleteDeadline,
   onResolveAlert,
+  onNavigate,
 }: {
   courses: Course[]
   deadlines: AcademicDeadline[]
@@ -1763,8 +1796,15 @@ function DashboardView({
   alerts: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>[]
   onCompleteDeadline: (id: string) => Promise<void>
   onResolveAlert: (id: string) => Promise<void>
+  /** Switch to a sibling workspace tab. Used by the "Review day" CTA. */
+  onNavigate: (tool: WorkspaceTool) => void
 }) {
   const dueSoon = deadlines.filter(deadline => !deadline.completed).slice(0, 3)
+  // Count items genuinely due now: anything past or due today.
+  const today = new Date(); today.setHours(23, 59, 59, 999)
+  const dueNow = studyItems.filter(s =>
+    !s.nextReviewAt || s.nextReviewAt <= today.getTime()
+  ).length
   return (
     <section className="phase3-card dashboard-view">
       <header className="phase3-header">
@@ -1773,7 +1813,13 @@ function DashboardView({
           <h1>Today’s operating picture</h1>
           <span>Courses, deadlines, study queue, and local alerts stay in one glass workspace.</span>
         </div>
-        <button className="share-button"><BarChart3 size={15} /> Review day</button>
+        <button
+          className="share-button"
+          onClick={() => onNavigate('flashcards')}
+          title={dueNow > 0 ? `${dueNow} card${dueNow === 1 ? '' : 's'} due — opens Flashcards` : 'Open Flashcards review'}
+        >
+          <BarChart3 size={15} /> Review day{dueNow > 0 ? ` (${dueNow})` : ''}
+        </button>
       </header>
       <div className="metric-grid">
         <MetricCard label="Courses" value={courses.length} detail="Active this term" icon={<BookOpen size={20} />} />
@@ -1820,6 +1866,9 @@ function DashboardView({
 function QuizView({ selected, selectedText, courseId, studyItems, onSave }: { selected: Note | null; selectedText: string; courseId?: string; studyItems: StudyItem[]; onSave: (note: Note) => void }) {
   const [drafts, setDrafts] = useState<QuizQuestionDraft[]>([])
   const [savedNote, setSavedNote] = useState<Note | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [statusMsg, setStatusMsg] = useState<string | null>(null)
 
   function generate() {
     if (!selectedText) return
@@ -1856,6 +1905,8 @@ function QuizView({ selected, selectedText, courseId, studyItems, onSave }: { se
 
   async function handleSave() {
     if (drafts.length === 0) return
+    setSaving(true)
+    setError(null)
     const content = JSON.stringify({
       type: 'doc',
       content: [
@@ -1866,25 +1917,41 @@ function QuizView({ selected, selectedText, courseId, studyItems, onSave }: { se
         })),
       ],
     })
-    const note = await ipc.invoke<Note>('notes:create', { title: `Quiz: ${selected?.title || 'Study'}`, content })
-    const updated = await ipc.invoke<Note>('notes:update', { id: note.id, patch: { documentType: 'reading', courseId, tags: ['quiz'] } })
-    setSavedNote(updated)
-    onSave(updated)
+    try {
+      const note = await ipc.invoke<Note>('notes:create', { title: `Quiz: ${selected?.title || 'Study'}`, content })
+      const updated = await ipc.invoke<Note>('notes:update', { id: note.id, patch: { documentType: 'reading', courseId, tags: ['quiz'] } })
+      setSavedNote(updated)
+      setStatusMsg(`Saved as "${updated.title}".`)
+      onSave(updated)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Could not save quiz: ${msg}`)
+    } finally { setSaving(false) }
   }
 
   async function saveAsStudyItems() {
     if (drafts.length === 0 && !savedNote) return
+    setSaving(true)
+    setError(null)
     const questions = drafts.length > 0 ? drafts : []
-    // If already saved as note, re-derive questions from the saved note
     const items = questions.length > 0 ? questions : (savedNote ? extractQuestionsFromNote(savedNote) : [])
-    for (const q of items) {
-      if (!q.question.trim()) continue
-      const isDuplicate = studyItems.some(s => s.front === q.question.trim())
-      if (isDuplicate) continue
-      await ipc.invoke('study:create', { front: q.question.trim(), type: 'question', courseId })
-    }
-    setDrafts([])
-    setSavedNote(null)
+    let created = 0
+    let skipped = 0
+    try {
+      for (const q of items) {
+        const front = q.question.trim()
+        if (!front) { skipped++; continue }
+        if (isDuplicateQuestion(studyItems, front)) { skipped++; continue }
+        await ipc.invoke('study:create', { front, type: 'question', courseId })
+        created++
+      }
+      setDrafts([])
+      setSavedNote(null)
+      setStatusMsg(`Created ${created} study question${created === 1 ? '' : 's'}${skipped > 0 ? ` (${skipped} skipped as duplicates)` : ''}.`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Created ${created}/${items.length} before failing: ${msg}`)
+    } finally { setSaving(false) }
   }
 
   return (
@@ -1898,12 +1965,21 @@ function QuizView({ selected, selectedText, courseId, studyItems, onSave }: { se
         {drafts.length === 0 && !savedNote
           ? <button className="review-button" onClick={generate} disabled={!selectedText}><HelpCircle size={15} /> Generate questions</button>
           : drafts.length > 0
-            ? <div className="phase3-actions"><button className="review-button" onClick={handleSave}><HelpCircle size={15} /> Save quiz draft</button><button className="outline-button" onClick={saveAsStudyItems}><ClipboardList size={15} /> Also save as study questions</button></div>
+            ? <div className="phase3-actions"><button className="review-button" onClick={handleSave} disabled={saving}><HelpCircle size={15} /> {saving ? 'Saving...' : 'Save quiz draft'}</button><button className="outline-button" onClick={saveAsStudyItems} disabled={saving}><ClipboardList size={15} /> Also save as study questions</button></div>
             : savedNote
-              ? <button className="outline-button" onClick={saveAsStudyItems}><ClipboardList size={15} /> Also save as study questions</button>
+              ? <button className="outline-button" onClick={saveAsStudyItems} disabled={saving}><ClipboardList size={15} /> {saving ? 'Saving...' : 'Also save as study questions'}</button>
               : null
         }
       </header>
+      {error && (
+        <div className="phase3-error" role="alert">
+          <strong>Something went wrong:</strong> {error}
+          <button onClick={() => setError(null)} aria-label="Dismiss">×</button>
+        </div>
+      )}
+      {statusMsg && !error && (
+        <div className="phase3-status" role="status">{statusMsg}</div>
+      )}
       {!selectedText && drafts.length === 0 && !savedNote && (
         <EmptyHint message="No document selected" hint="Select a document to generate quiz questions from its content." />
       )}
@@ -1971,15 +2047,21 @@ function FlashcardsView({ selectedText, studyItems, courseId, onReviewStudyItem,
     const validDrafts = drafts.filter(d => d.front.trim().length > 0)
     let saved = 0
     let skipped = 0
-    for (const draft of validDrafts) {
-      const isDuplicate = studyItems.some(item => item.front === draft.front.trim() && item.back === (draft.back?.trim() || undefined))
-      if (isDuplicate) { skipped++; continue }
-      await ipc.invoke('study:create', { front: draft.front.trim(), back: draft.back?.trim() || undefined, type: 'flashcard', courseId })
-      saved++
+    try {
+      for (const draft of validDrafts) {
+        const front = draft.front.trim()
+        const back = draft.back?.trim() || undefined
+        if (isDuplicateFlashcard(studyItems, front, back)) { skipped++; continue }
+        await ipc.invoke('study:create', { front, back, type: 'flashcard', courseId })
+        saved++
+      }
+      setDrafts([])
+      onStatus(skipped > 0 ? `${saved} saved, ${skipped} skipped (duplicates).` : `${saved} flashcards saved.`)
+      onSave()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      onStatus(`Saved ${saved}/${validDrafts.length} before failing: ${msg}`)
     }
-    setDrafts([])
-    onStatus(skipped > 0 ? `${saved} saved, ${skipped} skipped (duplicates).` : `${saved} flashcards saved.`)
-    onSave()
   }
 
   const cards = studyItems.slice(0, 6)
@@ -1996,8 +2078,15 @@ function FlashcardsView({ selectedText, studyItems, courseId, onReviewStudyItem,
             <button
               className="review-button"
               onClick={async () => {
-                const r = await ipc.invoke<{ notesProcessed: number; totalCreated: number; totalUpdated: number; totalDeleted: number }>('study:syncAllNotes', {})
-                onStatus(`Sync: +${r.totalCreated} new, ${r.totalUpdated} updated, ${r.totalDeleted} removed across ${r.notesProcessed} note(s).`)
+                try {
+                  const r = await ipc.invoke<{ notesProcessed: number; totalCreated: number; totalUpdated: number; totalDeleted: number }>('study:syncAllNotes', {})
+                  // Defensive: backend may evolve. Don't crash on missing fields.
+                  const c = r?.totalCreated ?? 0, u = r?.totalUpdated ?? 0, d = r?.totalDeleted ?? 0, np = r?.notesProcessed ?? 0
+                  onStatus(`Sync: +${c} new, ${u} updated, ${d} removed across ${np} note(s).`)
+                } catch (err) {
+                  const msg = err instanceof Error ? err.message : String(err)
+                  onStatus(`Sync failed: ${msg}`)
+                }
                 onSave()
               }}
               title="Re-derive flashcards from all notes (heading-based, level 3)"
@@ -2061,8 +2150,10 @@ function SyllabusImportView({ selected, selectedText, courseId, onCreate, onConf
 }) {
   const [review, setReview] = useState<SyllabusParseReview | null>(null)
   const [parsing, setParsing] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const [confirmResult, setConfirmResult] = useState<SyllabusConfirmResult | null>(null)
   const [rawPaste, setRawPaste] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   /** Text to parse: raw paste takes priority over note content. */
   const parseText = rawPaste.trim() || selectedText
@@ -2071,32 +2162,44 @@ function SyllabusImportView({ selected, selectedText, courseId, onCreate, onConf
   async function handleParse() {
     if (!parseText) return
     setParsing(true)
+    setError(null)
     try {
       const r = await ipc.invoke<{
-        course: SyllabusParseReview['course']
-        classMeetings: SyllabusClassMeetingReview[]
-        assignments: Array<{ title: string; dueDate?: number; weight?: string; type: string }>
-        deadlines: Array<{ title: string; deadlineAt: number; type: string }>
-        readings: Array<{ title: string; chapter?: string }>
-        setupTasks: Array<{ title: string; category: string }>
-        scheduleRows: unknown[]
+        course?: SyllabusParseReview['course']
+        classMeetings?: SyllabusClassMeetingReview[]
+        assignments?: Array<{ title: string; dueDate?: number; weight?: string; type: string }>
+        deadlines?: Array<{ title: string; deadlineAt: number; type: string }>
+        readings?: Array<{ title: string; chapter?: string }>
+        setupTasks?: Array<{ title: string; category: string }>
+        scheduleRows?: unknown[]
       }>('syllabus:parse', { text: parseText, courseId })
+      // Defensive: every field must be optional in case the parser returns
+      // a partial result on a malformed syllabus. The previous code crashed
+      // on `r.course.foo` access if the AI failed to identify a course.
       setReview({
-        course: r.course,
-        classMeetings: r.classMeetings ?? [],
-        assignments: (r.assignments ?? []).map(a => ({ ...a, included: true })),
-        deadlines: (r.deadlines ?? []).map(d => ({ title: d.title, deadlineAt: d.deadlineAt, type: d.type, included: true })),
-        setupTasks: (r.setupTasks ?? []).map(t => ({ ...t, included: true })),
-        readings: r.readings ?? [],
-        scheduleRowCount: r.scheduleRows?.length ?? 0,
+        course: r?.course ?? { code: '', name: '', term: '' },
+        classMeetings: r?.classMeetings ?? [],
+        assignments: (r?.assignments ?? []).map(a => ({ ...a, included: true })),
+        deadlines: (r?.deadlines ?? []).map(d => ({ title: d.title, deadlineAt: d.deadlineAt, type: d.type, included: true })),
+        setupTasks: (r?.setupTasks ?? []).map(t => ({ ...t, included: true })),
+        readings: r?.readings ?? [],
+        scheduleRowCount: r?.scheduleRows?.length ?? 0,
       })
       setConfirmResult(null)
+    } catch (err) {
+      // Surface the failure in the UI rather than leaving the user
+      // staring at a "parsing…" state forever.
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Parse failed: ${msg}`)
+      onStatus(`Parse failed: ${msg}`)
     } finally { setParsing(false) }
   }
 
   // ── Confirm ─────────────────────────────────────────────────────────
   async function handleConfirm() {
     if (!review) return
+    setConfirming(true)
+    setError(null)
     const payload = {
       courseId,
       course: !courseId ? review.course : undefined,
@@ -2113,14 +2216,22 @@ function SyllabusImportView({ selected, selectedText, courseId, onCreate, onConf
         title: t.title, category: t.category, confirmed: true,
       })),
     }
-    const result = await ipc.invoke<SyllabusConfirmResult>('syllabus:confirmImport', payload)
-    if (selected) {
-      await ipc.invoke('notes:update', { id: selected.id, patch: { documentType: 'syllabus', courseId: result?.courseId ?? courseId } })
-    }
-    setConfirmResult(result)
-    const c = result.counts
-    onStatus(`Import complete: ${c.assignments} assignment(s), ${c.deadlines} deadline(s), ${c.setupAlerts} setup task(s).`)
-    onRefresh()
+    try {
+      const result = await ipc.invoke<SyllabusConfirmResult>('syllabus:confirmImport', payload)
+      if (selected) {
+        await ipc.invoke('notes:update', { id: selected.id, patch: { documentType: 'syllabus', courseId: result?.courseId ?? courseId } })
+      }
+      setConfirmResult(result)
+      // Defensive: backend may evolve and not return counts. Don't crash.
+      const c = result?.counts ?? { assignments: 0, deadlines: 0, setupAlerts: 0 }
+      onStatus(`Import complete: ${c.assignments} assignment(s), ${c.deadlines} deadline(s), ${c.setupAlerts} setup task(s).`)
+      onRefresh()
+      onConfirm()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Import failed: ${msg}`)
+      onStatus(`Import failed: ${msg}`)
+    } finally { setConfirming(false) }
   }
 
   // ── Inline edit helpers ─────────────────────────────────────────────
@@ -2226,10 +2337,16 @@ function SyllabusImportView({ selected, selectedText, courseId, onCreate, onConf
           <button className="outline-button" onClick={() => onCreate('syllabus')}><Upload size={15} /> New syllabus note</button>
           {!review
             ? <button className="review-button" onClick={handleParse} disabled={!parseText || parsing}><Sparkles size={15} /> {parsing ? 'Parsing...' : 'Parse syllabus'}</button>
-            : <button className="review-button" onClick={handleConfirm}><Sparkles size={15} /> Confirm import</button>
+            : <button className="review-button" onClick={handleConfirm} disabled={confirming}><Sparkles size={15} /> {confirming ? 'Importing...' : 'Confirm import'}</button>
           }
         </div>
       </header>
+      {error && (
+        <div className="phase3-error" role="alert">
+          <strong>Something went wrong:</strong> {error}
+          <button onClick={() => setError(null)} aria-label="Dismiss">×</button>
+        </div>
+      )}
 
       {!review && (
         <div className="syllabus-grid">

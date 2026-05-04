@@ -3470,3 +3470,43 @@ body {
   color: rgba(255, 255, 255, 0.85);
   line-height: 1;
 }
+
+/* === Error + status banners shared by parser tabs === */
+.phase3-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255, 90, 100, 0.10);
+  border: 1px solid rgba(255, 90, 100, 0.35);
+  color: #ffb3b8;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.phase3-error strong {
+  color: #ff7a85;
+  font-weight: 700;
+}
+.phase3-error button {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  color: rgba(255, 179, 184, 0.7);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.phase3-error button:hover { color: #fff; }
+
+.phase3-status {
+  margin: 12px 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(95, 161, 255, 0.10);
+  border: 1px solid rgba(95, 161, 255, 0.30);
+  color: #cfe1ff;
+  font-size: 12.5px;
+}
