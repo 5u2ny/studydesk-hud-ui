@@ -1136,6 +1136,29 @@ function DocumentWorkspace({
   onSelect: (n: Note) => void
 }) {
   const [questionStatus, setQuestionStatus] = useState('')
+  // Attic revisions UI (DokuWiki port)
+  const [showRevisions, setShowRevisions] = useState(false)
+  const [revisions, setRevisions] = useState<Array<{ timestamp: number; size: number; title: string }>>([])
+  useEffect(() => {
+    if (!showRevisions || !selected) { setRevisions([]); return }
+    let cancelled = false
+    ipc.invoke<Array<{ timestamp: number; size: number; title: string }>>('notes:listRevisions', { noteId: selected.id })
+      .then(list => { if (!cancelled) setRevisions(list) })
+      .catch(() => { if (!cancelled) setRevisions([]) })
+    return () => { cancelled = true }
+  }, [showRevisions, selected?.id])
+
+  async function restoreRevision(timestamp: number) {
+    if (!selected) return
+    try {
+      const restored = await ipc.invoke<Note>('notes:restoreRevision', { noteId: selected.id, timestamp })
+      setShowRevisions(false)
+      onSelect(restored)
+      onRefresh()
+    } catch (e) {
+      console.warn('[restoreRevision]', e)
+    }
+  }
 
   // Reverse-link discovery: scan all notes' content (TipTap JSON serialized
   // as a string) for occurrences of the current note's id inside a noteLink
@@ -1336,6 +1359,9 @@ function DocumentWorkspace({
             >
               Export .md
             </button>
+            <button onClick={() => setShowRevisions(true)} title="View revision history (last 50 saves)">
+              History
+            </button>
             <button onClick={() => onDelete(selected.id)}>Delete</button>
             {questionStatus && <em>{questionStatus}</em>}
           </div>
@@ -1446,6 +1472,33 @@ function DocumentWorkspace({
           <div className="notes-empty-actions">
             <button className="notes-create-btn" onClick={() => onCreate('assignment_prompt')}>Create assignment prompt</button>
             <button className="notes-create-btn ghost" onClick={() => onCreate('note')}>New blank note</button>
+          </div>
+        </div>
+      )}
+      {/* Revisions modal (DokuWiki attic port) */}
+      {showRevisions && selected && (
+        <div className="revisions-modal-backdrop" onClick={() => setShowRevisions(false)}>
+          <div className="revisions-modal" onClick={e => e.stopPropagation()}>
+            <header>
+              <span>Revision history · {selected.title || 'Untitled'}</span>
+              <button onClick={() => setShowRevisions(false)} aria-label="Close">×</button>
+            </header>
+            {revisions.length === 0 ? (
+              <div className="revisions-empty">No prior revisions yet — keep editing and a snapshot is saved every ~30s.</div>
+            ) : (
+              <ul>
+                {revisions.map(rev => (
+                  <li key={rev.timestamp}>
+                    <button className="revisions-row" onClick={() => restoreRevision(rev.timestamp)}>
+                      <span className="revisions-when">{new Date(rev.timestamp).toLocaleString()}</span>
+                      <span className="revisions-title">{rev.title || 'Untitled'}</span>
+                      <span className="revisions-size">{(rev.size / 1024).toFixed(1)} KB</span>
+                      <span className="revisions-restore">Restore</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}

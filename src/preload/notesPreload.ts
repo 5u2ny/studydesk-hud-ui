@@ -52,6 +52,8 @@ const INVOKE_CHANNELS = new Set([
   'folder:rescan',
   'shell:openSourceFile',
   'notes:exportMarkdown',
+  'notes:listRevisions',
+  'notes:restoreRevision',
 ]);
 
 const SUBSCRIBE_CHANNELS = new Set([

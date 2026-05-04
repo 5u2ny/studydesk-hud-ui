@@ -60,7 +60,8 @@ class FocusStore {
     const base = defaults();
     try {
       if (!fs.existsSync(this.filePath)) return base;
-      const parsed = JSON.parse(fs.readFileSync(this.filePath, 'utf-8')) as Partial<StoreData>;
+      const raw = fs.readFileSync(this.filePath, 'utf-8');
+      const parsed = JSON.parse(raw) as Partial<StoreData>;
       return {
         ...base,
         ...parsed,
@@ -77,8 +78,38 @@ class FocusStore {
           },
         },
       };
-    } catch {
+    } catch (err: any) {
+      // Auto-quarantine corrupt store (port from lyonzin/knowledge-rag).
+      // Move the broken file aside instead of crashing on boot or
+      // silently overwriting user data. The quarantined copy stays in
+      // backups/auto-repair-<ts>/ so a user can recover by hand.
+      this.quarantine(err?.message ?? 'unknown error');
       return base;
+    }
+  }
+
+  /** Move a corrupt store file aside under
+   *  `<userData>/backups/auto-repair-<timestamp>/focus-os-store.json` so
+   *  the next boot starts from defaults instead of crashing. */
+  private quarantine(reason: string): void {
+    try {
+      if (!fs.existsSync(this.filePath)) return;
+      const dir = path.dirname(this.filePath);
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const quarantineDir = path.join(dir, 'backups', `auto-repair-${stamp}`);
+      fs.mkdirSync(quarantineDir, { recursive: true });
+      const dest = path.join(quarantineDir, path.basename(this.filePath));
+      fs.renameSync(this.filePath, dest);
+      console.warn(
+        `[focusStore] corrupt store quarantined to ${dest} — reason: ${reason}. ` +
+        `Started fresh; the broken file is preserved for manual recovery.`
+      );
+    } catch (mvErr: any) {
+      // Quarantine itself failed — log and proceed with defaults so the
+      // app still boots. The broken file will be overwritten on first
+      // persist; that's acceptable since recovery from in-place corruption
+      // is a lost cause anyway.
+      console.warn(`[focusStore] quarantine failed: ${mvErr?.message}; proceeding with defaults`);
     }
   }
 

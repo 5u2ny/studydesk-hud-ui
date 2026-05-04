@@ -50,6 +50,8 @@ export interface IPCContracts {
   'folder:rescan': { req: undefined; res: boolean };
   'shell:openSourceFile': { req: { path: string }; res: boolean };
   'notes:exportMarkdown': { req: { title: string; markdown: string }; res: { written: boolean; path: string; bytes: number } | null };
+  'notes:listRevisions': { req: { noteId: string }; res: Array<{ timestamp: number; size: number; title: string }> };
+  'notes:restoreRevision': { req: { noteId: string; timestamp: number }; res: Note };
   // Flashcard sync (StudyMD-style note → cards)
   'study:syncNote': { req: { noteId: string; headingLevel?: number }; res: { created: number; updated: number; deleted: number; cards: StudyItem[] } };
   'study:syncAllNotes': { req: { headingLevel?: number }; res: { notesProcessed: number; totalCreated: number; totalUpdated: number; totalDeleted: number } };

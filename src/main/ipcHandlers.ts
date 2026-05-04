@@ -26,6 +26,7 @@ import { criticalEmailService } from './services/gmail/criticalEmailService';
 import { todayService } from './services/today/todayService';
 import { attentionAlertService } from './services/attention/attentionAlertService';
 import { folderWatcherService } from './services/folders/folderWatcherService';
+import { revisionsService } from './services/revisions/revisionsService';
 import { flashcardSyncService } from './services/study/flashcardSyncService';
 import { buildICS, defaultFilename } from './services/calendar/icsExport';
 import { randomUUID } from 'node:crypto';
@@ -160,6 +161,17 @@ export function setupIPC() {
   ipcMain.handle('notes:get',    (_e, r)         => notesService.get(r.id));
   ipcMain.handle('notes:create', (_e, r)         => notesService.create(r));
   ipcMain.handle('notes:update', (_e, r) => {
+    // Attic revisions (DokuWiki port): snapshot the PRIOR state before
+    // applying the patch — only when content actually changes (other
+    // patches like documentType / tags don't warrant a snapshot). The
+    // service's MIN_GAP_MS debounces rapid saves so we don't churn the
+    // disk during typing.
+    if (r.patch?.content !== undefined) {
+      const prior = notesService.get(r.id);
+      if (prior && prior.content !== r.patch.content) {
+        revisionsService.snapshot(prior);
+      }
+    }
     const updated = notesService.update(r.id, r.patch);
     // Auto-sync flashcards: any time a note's content changes, re-derive its
     // heading-based cards. Stable cardKey preserves SM-2 review state.
@@ -169,6 +181,20 @@ export function setupIPC() {
       }
     }
     return updated;
+  });
+
+  // List & restore note revisions (Attic port)
+  ipcMain.handle('notes:listRevisions', (_e, r: { noteId: string }) => {
+    return revisionsService.listFor(r.noteId);
+  });
+  ipcMain.handle('notes:restoreRevision', (_e, r: { noteId: string; timestamp: number }) => {
+    const prior = revisionsService.read(r.noteId, r.timestamp);
+    if (!prior) throw new Error(`Revision not found: ${r.timestamp}`);
+    // Snapshot the CURRENT state before overwriting it, so a restore is
+    // itself reversible.
+    const current = notesService.get(r.noteId);
+    if (current) revisionsService.snapshot(current);
+    return notesService.update(r.noteId, { content: prior.content, title: prior.title });
   });
   ipcMain.handle('notes:delete', (_e, r)         => notesService.delete(r.id));
 

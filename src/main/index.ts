@@ -89,6 +89,13 @@ app.whenReady().then(async () => {
     windowManager.toggleNotesWindow();
   });
 
+  // Quick-capture window — system-wide tiny window for typed thoughts
+  // (port from electron-markdownify's tray pattern). Cmd+Shift+Q opens
+  // a small floating window at the cursor; ⌘↵ saves as a manual capture.
+  globalShortcut.register('CommandOrControl+Shift+Q', () => {
+    windowManager.toggleQuickCapture();
+  });
+
   // Cold-start: prompt for Accessibility permission so the OS dialog appears
   // on first launch. Without this, the auto-capture poll silently no-ops
   // forever and users have no idea why highlights aren't being saved.

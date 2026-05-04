@@ -58,6 +58,7 @@ function makeTrayIcon(progress: number, color: string): Electron.NativeImage {
 export class WindowManager {
   floatingWindow: BrowserWindow | null = null;
   notesWindow:    BrowserWindow | null = null;
+  quickCaptureWindow: BrowserWindow | null = null;
   private freezeWindows: BrowserWindow[] = [];
   tray: Tray | null = null;
   private savedBounds: Electron.Rectangle | null = null;
@@ -172,6 +173,94 @@ export class WindowManager {
 
     this.notesWindow = win;
     return win;
+  }
+
+  /** Tiny quick-capture window — port of electron-markdownify's tray
+   *  capture pattern. Frameless, always-on-top, ~360x180, opens at the
+   *  cursor and disappears on submit/escape. UI loaded from a data URL
+   *  so we don't add another Vite entry point. Reuses the floating
+   *  preload bridge for IPC access. */
+  createQuickCaptureWindow(): BrowserWindow {
+    const cursor = screen.getCursorScreenPoint();
+    const W = 360, H = 180;
+    const win = new BrowserWindow({
+      width: W, height: H,
+      x: cursor.x - Math.round(W / 2),
+      y: cursor.y - Math.round(H / 2),
+      type: 'panel',
+      frame: false, transparent: true, hasShadow: true,
+      alwaysOnTop: true, skipTaskbar: true,
+      resizable: false, movable: false,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        preload: getPreloadPath('floatingPreload'),
+        contextIsolation: true, nodeIntegration: false, sandbox: false,
+      },
+    });
+
+    win.setAlwaysOnTop(true, 'screen-saver');
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+    // Inline UI — no Vite entry point needed. The preload's `electron`
+    // bridge is available so we can call capture:save without IPC plumbing.
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font:13px -apple-system,system-ui,sans-serif;color:#f5f5f7;
+       -webkit-app-region:drag;overflow:hidden;background:transparent}
+  .card{background:rgba(20,20,24,0.94);backdrop-filter:blur(28px) saturate(1.6);
+        -webkit-backdrop-filter:blur(28px) saturate(1.6);
+        border:1px solid rgba(255,255,255,0.10);border-radius:14px;
+        box-shadow:0 18px 48px rgba(0,0,0,0.55),0 1px 2px rgba(0,0,0,0.30);
+        height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  .hdr{display:flex;justify-content:space-between;align-items:center;
+       padding:8px 14px;border-bottom:1px solid rgba(255,255,255,0.06);
+       font-size:10px;font-weight:700;letter-spacing:0.10em;
+       text-transform:uppercase;color:rgba(255,255,255,0.55)}
+  .hdr .hint{color:rgba(255,255,255,0.40);letter-spacing:0.04em;
+             font-weight:500;text-transform:none;font-size:10.5px}
+  textarea{flex:1;width:100%;padding:10px 14px;border:0;outline:0;
+           background:transparent;color:#fff;font:inherit;font-size:13px;
+           line-height:1.5;resize:none;-webkit-app-region:no-drag}
+  textarea::placeholder{color:rgba(255,255,255,0.30);font-style:italic}
+</style></head><body>
+<div class="card">
+  <div class="hdr"><span>📝 Quick capture</span><span class="hint">⌘↵ save · esc close</span></div>
+  <textarea id="t" autofocus placeholder="What's on your mind?"></textarea>
+</div>
+<script>
+  const t = document.getElementById('t');
+  t.focus();
+  document.addEventListener('keydown', async (e) => {
+    if (e.key === 'Escape') { window.close(); return; }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      const text = t.value.trim();
+      if (text) {
+        try { await window.electron?.invoke('capture:save', { text, source: 'manual' }); } catch (_) {}
+      }
+      window.close();
+    }
+  });
+</script></body></html>`;
+    win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+
+    win.once('ready-to-show', () => { win.show(); win.focus(); });
+    win.on('blur', () => { try { win.close() } catch { /* */ } });
+    win.on('closed', () => { this.quickCaptureWindow = null; });
+
+    this.quickCaptureWindow = win;
+    return win;
+  }
+
+  /** Toggle the quick-capture window. If open: close. Otherwise: create + show. */
+  toggleQuickCapture(): void {
+    if (this.quickCaptureWindow && !this.quickCaptureWindow.isDestroyed()) {
+      this.quickCaptureWindow.close();
+      this.quickCaptureWindow = null;
+    } else {
+      this.createQuickCaptureWindow();
+    }
   }
 
   openNotesWindow(noteId?: string): void {
