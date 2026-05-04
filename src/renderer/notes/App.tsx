@@ -4,6 +4,7 @@ import { Editor } from './Editor'
 import { FileDropZone } from './components/FileDropZone'
 import { DailyJournalView } from './components/DailyJournalView'
 import { ScanSyllabusDropZone } from './components/ScanSyllabusDropZone'
+import { RelationMapView } from './components/RelationMapView'
 import {
   ShellContainer,
   IconRail,
@@ -32,6 +33,7 @@ import {
   Image,
   LayoutDashboard,
   MoreHorizontal,
+  Network,
   PanelTop,
   PenLine,
   Play,
@@ -107,7 +109,7 @@ interface QuizQuestionDraft {
   question: string
 }
 
-type WorkspaceTool = 'today' | 'dashboard' | 'daily' | 'quiz' | 'flashcards' | 'assignment' | 'syllabus' | 'class'
+type WorkspaceTool = 'today' | 'dashboard' | 'daily' | 'quiz' | 'flashcards' | 'assignment' | 'syllabus' | 'class' | 'map'
 type QuickAddKind = 'course' | 'deadline' | 'note' | 'assignment' | 'syllabus' | 'study' | 'question'
 
 interface QuickAddForm {
@@ -180,7 +182,7 @@ function defaultQuickAddForm(kind: QuickAddKind, selectedText = ''): QuickAddFor
 
 function initialWorkspaceTool(): WorkspaceTool {
   const tool = new URLSearchParams(window.location.search).get('tool')
-  return tool === 'dashboard' || tool === 'daily' || tool === 'quiz' || tool === 'flashcards' || tool === 'assignment' || tool === 'syllabus' || tool === 'class'
+  return tool === 'dashboard' || tool === 'daily' || tool === 'quiz' || tool === 'flashcards' || tool === 'assignment' || tool === 'syllabus' || tool === 'class' || tool === 'map'
     ? tool
     : 'today'
 }
@@ -488,6 +490,7 @@ export default function App() {
     { id: 'assignment', label: 'Assignment Parser', icon: <Sparkles size={14} /> },
     { id: 'syllabus', label: 'Syllabus Import', icon: <FileText size={14} /> },
     { id: 'class', label: 'Class Mode', icon: <GraduationCap size={14} /> },
+    { id: 'map', label: 'Map', icon: <Network size={14} /> },
   ]
 
   // ── SurfSense-style three-column shell render ─────────────────────────────
@@ -806,6 +809,7 @@ export default function App() {
           notes={notes}
           courses={courses}
           deadlines={orderedVisibleDeadlines}
+          assignments={visibleAssignments}
           studyItems={visibleStudyItems}
           confusions={unresolvedConfusions}
           alerts={activeAlerts}
@@ -884,6 +888,7 @@ function WorkspaceSurface({
   notes,
   courses,
   deadlines,
+  assignments,
   studyItems,
   confusions,
   alerts,
@@ -915,6 +920,7 @@ function WorkspaceSurface({
   notes: Note[]
   courses: Course[]
   deadlines: AcademicDeadline[]
+  assignments: Assignment[]
   studyItems: StudyItem[]
   confusions: ConfusionItem[]
   alerts: Pick<AttentionAlert, 'id' | 'title' | 'reason' | 'priority'>[]
@@ -954,6 +960,8 @@ function WorkspaceSurface({
       return <SyllabusImportView selected={selected} selectedText={selectedText} courseId={currentCourse?.id} onCreate={onCreate} onConfirm={onSyllabusConfirm} onRefresh={onRefresh} onStatus={onStatus} />
     case 'class':
       return <ClassModeView currentCourse={currentCourse} captures={captures} confusions={confusions} classSessions={classSessions} onStartClass={onStartClass} onResolveConfusion={onResolveConfusion} onEndClassSession={onEndClassSession} onRefresh={onRefresh} />
+    case 'map':
+      return <RelationMapView notes={notes} courses={courses} deadlines={deadlines} assignments={assignments} studyItems={studyItems} captures={captures} courseId={currentCourse?.id} onSelectNote={onSelect} />
     case 'today':
     default:
       return <DocumentWorkspace selected={selected} selectedText={selectedText} captures={captures} currentCourse={currentCourse} linkedAssignment={linkedAssignment} onUpdate={onUpdate} onDelete={onDelete} onCreate={onCreate} onCreateFromFile={onCreateFromFile} onRefresh={onRefresh} />
