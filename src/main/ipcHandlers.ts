@@ -27,6 +27,7 @@ import { todayService } from './services/today/todayService';
 import { attentionAlertService } from './services/attention/attentionAlertService';
 import { folderWatcherService } from './services/folders/folderWatcherService';
 import { flashcardSyncService } from './services/study/flashcardSyncService';
+import { buildICS, defaultFilename } from './services/calendar/icsExport';
 import { randomUUID } from 'node:crypto';
 import { significantWords, calendarDay, hasWordOverlap } from './services/syllabus/dedup';
 
@@ -250,6 +251,31 @@ export function setupIPC() {
   ipcMain.handle('deadline:update', (_e, r) => deadlineService.update(r.id, r.patch));
   ipcMain.handle('deadline:delete', (_e, r) => deadlineService.delete(r.id));
   ipcMain.handle('deadline:complete', (_e, r) => deadlineService.complete(r.id));
+
+  // ── .ics calendar export (Syllabus-to-Calendar inspired, RFC 5545) ────
+  // Builds an .ics from current deadlines + courses, prompts the user for a
+  // save location, writes the file. Returns { written, path, count } or null
+  // if cancelled.
+  ipcMain.handle('calendar:exportDeadlines', async (_e, r: { courseId?: string; includeCompleted?: boolean }) => {
+    const deadlines = focusStore.get('academicDeadlines');
+    const courses = focusStore.get('courses');
+    const targetCourse = r?.courseId ? courses.find(c => c.id === r.courseId) : undefined;
+    const ics = buildICS(deadlines, courses, {
+      courseId: r?.courseId,
+      includeCompleted: r?.includeCompleted,
+    });
+    const win = windowManager.notesWindow ?? windowManager.floatingWindow;
+    const result = await dialog.showSaveDialog(win!, {
+      title: 'Export deadlines to calendar',
+      defaultPath: defaultFilename(targetCourse),
+      filters: [{ name: 'iCalendar', extensions: ['ics'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    await fsp.writeFile(result.filePath, ics, 'utf-8');
+    // Count VEVENTs to report back accurately (after filtering).
+    const count = (ics.match(/BEGIN:VEVENT/g) ?? []).length;
+    return { written: true, path: result.filePath, count };
+  });
 
   // ── Focus OS Student: Syllabus ────────────────────────────────────────
   ipcMain.handle('syllabus:parse', (_e, r) => syllabusParserService.parse(r));

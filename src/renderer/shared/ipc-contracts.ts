@@ -53,6 +53,8 @@ export interface IPCContracts {
   'study:syncAllNotes': { req: { headingLevel?: number }; res: { notesProcessed: number; totalCreated: number; totalUpdated: number; totalDeleted: number } };
   'study:cardsFromNote': { req: { noteId: string }; res: StudyItem[] };
   'study:syncCapture': { req: { capture: Capture; back?: string }; res: StudyItem };
+  // Calendar export (.ics)
+  'calendar:exportDeadlines': { req: { courseId?: string; includeCompleted?: boolean }; res: { written: boolean; path: string; count: number } | null };
   'assignment:list': { req: { courseId?: string; includeArchived?: boolean }; res: Assignment[] };
   'assignment:create': { req: Partial<Assignment> & { title: string }; res: Assignment };
   'assignment:update': { req: { id: string; patch: Partial<Assignment> }; res: Assignment };

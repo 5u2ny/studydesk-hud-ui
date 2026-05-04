@@ -490,12 +490,34 @@ export default function App() {
   ]
 
   // ── SurfSense-style three-column shell render ─────────────────────────────
+  const exportDeadlines = async () => {
+    const result = await ipc.invoke<{ written: boolean; path: string; count: number } | null>(
+      'calendar:exportDeadlines',
+      { courseId: selectedCourseId ?? undefined }
+    )
+    if (result) {
+      setStatus(`Exported ${result.count} deadline${result.count === 1 ? '' : 's'} to ${result.path.split('/').pop()}`)
+      setTimeout(() => setStatus(''), 4000)
+    }
+  }
+
   const sourcesContent = (
     <div className="space-y-4">
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Upcoming Deadlines</span>
-          <span className="text-[10px] text-white/40">{orderedVisibleDeadlines.length}</span>
+          <div className="flex items-center gap-2">
+            {orderedVisibleDeadlines.length > 0 && (
+              <button
+                onClick={exportDeadlines}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-semibold text-white/55 hover:text-blue-200 hover:bg-blue-500/10 transition-colors"
+                title="Export to .ics calendar file"
+              >
+                <CalendarDays size={9} />Export
+              </button>
+            )}
+            <span className="text-[10px] text-white/40">{orderedVisibleDeadlines.length}</span>
+          </div>
         </div>
         {orderedVisibleDeadlines.length > 0 ? (
           <div className="space-y-1.5">

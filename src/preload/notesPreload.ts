@@ -33,6 +33,8 @@ const INVOKE_CHANNELS = new Set([
   'study:syncAllNotes',
   'study:cardsFromNote',
   'study:syncCapture',
+  // Calendar export
+  'calendar:exportDeadlines',
   'confusion:list',
   'confusion:create',
   'confusion:update',
