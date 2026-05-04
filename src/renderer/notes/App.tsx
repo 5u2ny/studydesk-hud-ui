@@ -6,6 +6,7 @@ import { DailyJournalView } from './components/DailyJournalView'
 import { ScanSyllabusDropZone } from './components/ScanSyllabusDropZone'
 import { RelationMapView } from './components/RelationMapView'
 import { filterItems } from '@shared/lib/filterDsl'
+import { lintNotes, summarizeIssues, type LintIssue } from './lib/noteHealth'
 import {
   ShellContainer,
   IconRail,
@@ -244,7 +245,7 @@ export default function App() {
   const toggleSection = (key: string) => setExpandedSections(p => ({ ...p, [key]: !p[key] }))
   // SurfSense-style right panel: collapsible Documents column with tabs
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
-  const [rightTab, setRightTab] = useState<'sources' | 'materials' | 'study'>('sources')
+  const [rightTab, setRightTab] = useState<'sources' | 'materials' | 'study' | 'health'>('sources')
 
   async function refresh() {
     const [noteData, captureData, courseData, assignmentData, deadlineData, studyData, confusionData, alertData, classData] = await Promise.all([
@@ -753,6 +754,62 @@ export default function App() {
     </div>
   )
 
+  // Note Health (nashsu/llm_wiki port — lint heuristics, no LLM)
+  const lintIssues = useMemo<LintIssue[]>(() => lintNotes(notes), [notes])
+  const lintSummary = useMemo(() => summarizeIssues(lintIssues), [lintIssues])
+  const healthContent = (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Note Health</span>
+        <span className="text-[10px] text-white/40">{lintIssues.length} issue{lintIssues.length === 1 ? '' : 's'}</span>
+      </div>
+      {lintIssues.length === 0 ? (
+        <div className="text-center py-8 px-3">
+          <div className="text-[12px] text-white/55">All clear</div>
+          <div className="text-[10.5px] text-white/35 mt-1">No orphan links, missing parents, or stale notes.</div>
+        </div>
+      ) : (
+        <>
+          {lintSummary.warnCount > 0 && (
+            <div className="text-[10.5px] text-amber-300 mb-2">
+              {lintSummary.warnCount} warning{lintSummary.warnCount === 1 ? '' : 's'} · {lintSummary.infoCount} info
+            </div>
+          )}
+          <div className="space-y-1.5">
+            {lintIssues.slice(0, 30).map((issue, i) => (
+              <button
+                key={`${issue.noteId}-${issue.kind}-${i}`}
+                onClick={() => {
+                  const target = notes.find(n => n.id === issue.noteId)
+                  if (target) setSelected(target)
+                }}
+                className="w-full text-left px-2.5 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] transition-colors"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={
+                    'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ' +
+                    (issue.severity === 'warn'
+                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
+                      : 'bg-white/[0.06] text-white/55 border border-white/[0.08]')
+                  }>
+                    {issue.kind.replace(/_/g, ' ')}
+                  </span>
+                </div>
+                <div className="text-[12px] font-semibold text-white/90 truncate">{issue.noteTitle}</div>
+                <div className="text-[10.5px] text-white/55 mt-0.5">{issue.message}</div>
+              </button>
+            ))}
+            {lintIssues.length > 30 && (
+              <div className="text-[10.5px] text-white/40 italic px-2 py-1">
+                +{lintIssues.length - 30} more issues
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+
   return (
     <ShellContainer>
       {/* IconRail — narrow course avatars column (SurfSense IconRail) */}
@@ -913,6 +970,8 @@ export default function App() {
           sourcesSlot={sourcesContent}
           materialsSlot={materialsContent}
           studySlot={studyContent}
+          healthSlot={healthContent}
+          healthBadge={lintSummary.warnCount}
         />
       ) : (
         <RightPanelCollapsedButton

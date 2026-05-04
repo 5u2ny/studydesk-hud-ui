@@ -326,7 +326,7 @@ export function MainPanel({ tabs, activeTabId, onTabSelect, rightActions, childr
 }
 
 // ── RightPanel (Documents) ───────────────────────────────────────────────────
-type RightTab = 'sources' | 'materials' | 'study'
+type RightTab = 'sources' | 'materials' | 'study' | 'health'
 
 interface RightPanelProps {
   open: boolean
@@ -336,15 +336,19 @@ interface RightPanelProps {
   sourcesSlot: React.ReactNode
   materialsSlot: React.ReactNode
   studySlot: React.ReactNode
+  healthSlot: React.ReactNode
+  /** Optional badge count for the Health tab (e.g. "3 issues"). */
+  healthBadge?: number
 }
 
-export function RightPanel({ open, onClose, activeTab, onTabChange, sourcesSlot, materialsSlot, studySlot }: RightPanelProps) {
+export function RightPanel({ open, onClose, activeTab, onTabChange, sourcesSlot, materialsSlot, studySlot, healthSlot, healthBadge }: RightPanelProps) {
   if (!open) return null
 
-  const tabs: Array<{ id: RightTab; label: string; icon: LucideIcon }> = [
+  const tabs: Array<{ id: RightTab; label: string; icon: LucideIcon; badge?: number }> = [
     { id: 'sources', label: 'Sources', icon: CalendarDays },
     { id: 'materials', label: 'Materials', icon: Folder },
     { id: 'study', label: 'Study', icon: Sparkles },
+    { id: 'health', label: 'Health', icon: Target, badge: healthBadge },
   ]
 
   return (
@@ -384,6 +388,9 @@ export function RightPanel({ open, onClose, activeTab, onTabChange, sourcesSlot,
               >
                 <Icon size={11} />
                 {tab.label}
+                {tab.badge && tab.badge > 0 && (
+                  <span className="ml-0.5 px-1 py-px rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">{tab.badge > 9 ? '9+' : tab.badge}</span>
+                )}
               </button>
             )
           })}
@@ -393,6 +400,7 @@ export function RightPanel({ open, onClose, activeTab, onTabChange, sourcesSlot,
         {activeTab === 'sources' && sourcesSlot}
         {activeTab === 'materials' && materialsSlot}
         {activeTab === 'study' && studySlot}
+        {activeTab === 'health' && healthSlot}
       </div>
     </PanelCard>
   )

@@ -306,6 +306,90 @@ body {
   background: rgba(40, 123, 255, 0.22);
 }
 
+/* ── Auto-ToC dropdown (editor.md port) ──────────────────────────────── */
+.toc-dropdown { position: relative; display: inline-block; }
+.toc-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
+  width: 280px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(20, 20, 24, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.50);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  animation: tocMenuIn 140ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes tocMenuIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.toc-menu-header {
+  padding: 6px 10px 8px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.40);
+}
+.toc-menu ul { list-style: none; margin: 0; padding: 0; }
+.toc-item {
+  width: 100%;
+  display: block;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: left;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.10s, color 0.10s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toc-item:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+.toc-level-1 { font-weight: 700; }
+.toc-level-2 { padding-left: 22px; font-weight: 600; color: rgba(255, 255, 255, 0.78); }
+.toc-level-3 { padding-left: 34px; font-weight: 500; color: rgba(255, 255, 255, 0.62); }
+
+/* Brief flash on the target heading after a TOC jump */
+.ProseMirror h1.toc-flash,
+.ProseMirror h2.toc-flash,
+.ProseMirror h3.toc-flash {
+  animation: tocFlash 900ms ease-out;
+}
+@keyframes tocFlash {
+  0%   { background: rgba(95, 161, 255, 0.30); border-radius: 6px; }
+  100% { background: transparent; }
+}
+
+/* ── Writing modes — Typewriter + Focus (MarkText port) ────────────────── */
+/* When focus mode is on, all blocks fade out except the one with the
+ * caret. The .is-active-block decoration is applied by the WritingModes
+ * ProseMirror plugin to whatever block contains the current selection. */
+.ProseMirror[data-focus-mode] > * {
+  opacity: 0.32;
+  transition: opacity 0.18s ease;
+}
+.ProseMirror[data-focus-mode] > .is-active-block,
+.ProseMirror[data-focus-mode] > *:hover {
+  opacity: 1;
+}
+
+/* Typewriter mode: extra top + bottom padding so the caret can sit at
+ * 40% of the viewport height even at the start/end of the document. */
+.ProseMirror[data-typewriter] {
+  padding-top: 30vh;
+  padding-bottom: 50vh;
+}
+
 /* ── Inline comments (suitenumerique/docs port) ────────────────────────── */
 .ProseMirror span.inline-comment {
   position: relative;

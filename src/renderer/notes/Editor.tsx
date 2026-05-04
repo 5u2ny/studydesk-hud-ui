@@ -12,6 +12,8 @@ import { NoteLink, createNoteLinkSuggestionExtension } from './editor/noteLink'
 import { NoteLinkPopup, type NoteLinkPopupHandle } from './editor/NoteLinkPopup'
 import { Footnote } from './editor/footnoteNode'
 import { InlineComment } from './editor/inlineCommentMark'
+import { WritingModes } from './editor/writingModes'
+import { TocDropdown } from './components/TocDropdown'
 import { ipc } from '@shared/ipc-client'
 export { parseContent }
 
@@ -154,7 +156,7 @@ export function Editor({ note, captures, onUpdate }: Props) {
   }), [note.id])
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline, SourceQuote, NoteLink, Footnote, InlineComment, noteLinkExtension, slashExtension],
+    extensions: [StarterKit, Underline, SourceQuote, NoteLink, Footnote, InlineComment, WritingModes, noteLinkExtension, slashExtension],
     content: parseContent(note.content),
     onUpdate: ({ editor }) => {
       const json = JSON.stringify(editor.getJSON())
@@ -214,6 +216,24 @@ export function Editor({ note, captures, onUpdate }: Props) {
           onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBulletList().run() }}>• list</button>
         <button className={`notes-tool-btn ${editor?.isActive('blockquote') ? 'active' : ''}`}
           onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBlockquote().run() }}>"</button>
+        <span className="notes-tool-sep" />
+        {/* Writing modes (MarkText port): caret-locked centering + dim siblings */}
+        <button
+          className={`notes-tool-btn ${editor?.storage.writingModes?.typewriter ? 'active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleTypewriter().run() }}
+          title="Typewriter mode: caret stays vertically centered"
+        >
+          ⌨
+        </button>
+        <button
+          className={`notes-tool-btn ${editor?.storage.writingModes?.focus ? 'active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleFocusMode().run() }}
+          title="Focus mode: dim non-active paragraphs"
+        >
+          ◉
+        </button>
+        <span className="notes-tool-sep" />
+        <TocDropdown noteContent={note.content} />
       </div>
       <input className="notes-title-input" value={note.title} onChange={handleTitleChange} placeholder="Note title…" />
       <EditorContent editor={editor} className="notes-content" />
