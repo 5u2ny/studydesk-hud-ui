@@ -63,6 +63,10 @@ export interface NotchIdleChipInput {
 }
 
 export function getNotchIdleChips(input: NotchIdleChipInput): NotchIdleChip[] {
+  // Idle row keeps to: timer + next deadline. The "N Reviews" chip
+  // was removed per user request — the workspace Cards tab + Dashboard
+  // Review-day CTA already surface the study queue, so the notch
+  // doesn't need to repeat it next to the pill.
   const chips: NotchIdleChip[] = [{ id: 'timer', label: input.timerLabel }]
   if (input.nextDeadline) {
     chips.push({
@@ -71,16 +75,6 @@ export function getNotchIdleChips(input: NotchIdleChipInput): NotchIdleChip[] {
       deadline: input.nextDeadline,
     })
   }
-
-  const dueCount = getDueStudyItems(input.studyItems).length
-  if (dueCount > 0) {
-    chips.push({
-      id: 'study',
-      label: `${dueCount} ${dueCount === 1 ? 'Review' : 'Reviews'}`,
-      dueCount,
-    })
-  }
-
   return chips
 }
 

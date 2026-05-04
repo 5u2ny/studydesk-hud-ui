@@ -153,14 +153,17 @@ describe('getNotchIdleChips', () => {
     ])
   })
 
-  test('includes study only when at least one review is due', () => {
+  test('omits the study chip even when reviews are due (UX cleanup)', () => {
+    // The "N Reviews" chip was removed from the idle row per user
+    // request — the workspace Cards tab + Dashboard Review-day CTA
+    // already surface the study queue, so the notch doesn't repeat
+    // it next to the pill. Counts still surface in feature badges
+    // (getNotchBadges.study) and live status (getNotchLiveStatus
+    // falls back to the first due card's front).
     expect(getNotchIdleChips({
       timerLabel: '25:00 Focus',
       studyItems: [study('Due', now), study('Also due'), study('Later', now + 1)],
-    }).map(chip => ({ id: chip.id, label: chip.label }))).toEqual([
-      { id: 'timer', label: '25:00 Focus' },
-      { id: 'study', label: '2 Reviews' },
-    ])
+    }).map(chip => chip.id)).toEqual(['timer'])
   })
 })
 
