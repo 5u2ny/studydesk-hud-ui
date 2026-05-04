@@ -34,8 +34,12 @@ app.whenReady().then(async () => {
   console.log('[main] App ready, platform:', process.platform);
 
   // Set the dock icon explicitly so it's our logo even in dev runs.
-  // In a packaged .app, electron-builder uses assets/icon.icns from package.json
-  // build config — this runtime call is for `npm start` development.
+  // In a packaged .app, electron-builder uses assets/icon.icns from
+  // package.json build config — this runtime call is for `npm start`.
+  // The previous code called app.dock.hide() right after setIcon, which
+  // wiped the icon from the dock entirely (back when the floating HUD
+  // was meant to be the only visible surface). Now that the workspace
+  // window is the main UI, leave the dock icon up.
   if (process.platform === 'darwin') {
     const iconPath = resolveAppIcon();
     if (iconPath) {
@@ -45,7 +49,6 @@ app.whenReady().then(async () => {
         console.warn('[main] Failed to set dock icon:', e.message);
       }
     }
-    app.dock?.hide();
   }
 
   // ── Init store (local JSON file is created on first access) ───────────
