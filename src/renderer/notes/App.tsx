@@ -377,7 +377,11 @@ export default function App() {
   const selectedText = useMemo(() => selected ? noteText(selected.content) : '', [selected])
 
   const selectedCourse = selectedCourseId ? courses.find(c => c.id === selectedCourseId) : undefined
-  const currentCourse = selectedCourse ?? courses[0]
+  // Default to the most-recently-created course on first paint. After
+  // a syllabus import this means the freshly-imported course is the
+  // one whose assignments/deadlines populate the sidebar — which is
+  // what the user expects when they just dropped a syllabus in.
+  const currentCourse = selectedCourse ?? [...courses].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0]
 
   // Filter by selectedCourseId when set
   const byCourse = <T extends { courseId?: string }>(items: T[]) =>
@@ -626,26 +630,39 @@ export default function App() {
         {orderedVisibleDeadlines.length > 0 ? (
           <div className="space-y-1.5">
             {orderedVisibleDeadlines.slice(0, 6).map(d => {
-              const daysLeft = Math.max(0, Math.ceil((d.deadlineAt - Date.now()) / 86_400_000))
+              // Three buckets: overdue (past), today (within 24h), future
+              // (Nd). The previous code clamped past dates to 0 with
+              // Math.max(0, …) and labelled them all TODAY, which is why
+              // every past deadline read TODAY instead of OVERDUE.
+              const msDelta = d.deadlineAt - Date.now()
+              const isOverdue = msDelta < 0
+              const isToday = !isOverdue && msDelta < 86_400_000
+              const daysLeft = Math.ceil(msDelta / 86_400_000)
               const sourceNote = d.sourceId ? notes.find(n => n.id === d.sourceId) : undefined
+              const pillLabel = isOverdue ? 'OVERDUE' : isToday ? 'TODAY' : `${daysLeft}d`
+              const isUrgent = isOverdue || isToday
               return (
                 <button
                   key={d.id}
                   onClick={sourceNote ? () => setSelected(sourceNote) : undefined}
                   className={cn(
                     'w-full text-left px-2.5 py-2 rounded-lg border transition-colors group',
-                    daysLeft === 0
-                      ? 'bg-red-500/10 border-red-500/25 hover:bg-red-500/15'
-                      : 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]'
+                    isOverdue
+                      ? 'bg-red-500/12 border-red-500/30 hover:bg-red-500/18'
+                      : isToday
+                        ? 'bg-amber-500/10 border-amber-500/25 hover:bg-amber-500/15'
+                        : 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]'
                   )}
                 >
                   <div className="flex items-center gap-2 mb-0.5">
-                    <CalendarDays size={11} className={daysLeft === 0 ? 'text-red-300' : 'text-white/55'} />
+                    <CalendarDays size={11} className={isOverdue ? 'text-red-300' : isToday ? 'text-amber-200' : 'text-white/55'} />
                     <span className="flex-1 min-w-0 truncate text-[12px] font-semibold text-white/90">{d.title}</span>
                     <span className={cn(
-                      'shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase',
-                      daysLeft === 0 ? 'bg-red-500/20 text-red-200' : 'bg-white/[0.06] text-white/60'
-                    )}>{daysLeft === 0 ? 'TODAY' : `${daysLeft}d`}</span>
+                      'shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tabular-nums',
+                      isOverdue ? 'bg-red-500/22 text-red-200'
+                        : isToday ? 'bg-amber-500/20 text-amber-100'
+                        : 'bg-white/[0.06] text-white/60'
+                    )}>{pillLabel}</span>
                   </div>
                   <div className="text-[10.5px] text-white/45">{formatDue(d.deadlineAt)}</div>
                   {sourceNote && (
