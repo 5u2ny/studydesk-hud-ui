@@ -35,14 +35,16 @@ interface TimelineItem {
   noteId?: string
 }
 
-/** Compute the Monday of the week containing the given timestamp. */
+/** Compute the Monday of the week containing the given timestamp.
+ *  Uses Date constructor with explicit Y/M/D parts to avoid landing on
+ *  a 23:00 on the wrong calendar day across DST transitions (which
+ *  setDate + setHours can produce when the offset crosses a fall-back
+ *  or spring-forward Sunday). */
 function weekStart(ts: number): number {
   const d = new Date(ts)
-  d.setHours(0, 0, 0, 0)
   const day = d.getDay()
   const offset = day === 0 ? -6 : 1 - day  // Monday = start of week
-  d.setDate(d.getDate() + offset)
-  return d.getTime()
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + offset, 0, 0, 0, 0).getTime()
 }
 
 const KIND_META: Record<ItemKind, { color: string; icon: React.ComponentType<any>; label: string }> = {
@@ -116,7 +118,17 @@ export function TimelineView({ notes, deadlines, captures, studyItems, courses, 
     return Array.from(map.entries()).sort(([a], [b]) => a - b)
   }, [items])
 
-  // Auto-scroll to today on first render
+  // Build a Map<id, Note> once per render so per-card click lookups don't
+  // re-scan the full notes array.
+  const noteById = useMemo(() => {
+    const m = new Map<string, Note>()
+    for (const n of notes) m.set(n.id, n)
+    return m
+  }, [notes])
+
+  // Auto-scroll to today on first render. Depend on the weeks array
+  // identity (not just length) so a course-filter change that yields the
+  // same number of weeks still re-runs the scroll.
   const scrollerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!scrollerRef.current || weeks.length === 0) return
@@ -129,7 +141,7 @@ export function TimelineView({ notes, deadlines, captures, studyItems, courses, 
       // No week-of-today bucket — scroll to the rightmost (most-recent) week
       scrollerRef.current.scrollLeft = scrollerRef.current.scrollWidth
     }
-  }, [weeks.length])
+  }, [weeks])
 
   if (items.length === 0) {
     return (
@@ -181,7 +193,7 @@ export function TimelineView({ notes, deadlines, captures, studyItems, courses, 
                   {weekItems.map(item => {
                     const meta = KIND_META[item.kind]
                     const Icon = meta.icon
-                    const note = item.noteId ? notes.find(n => n.id === item.noteId) : undefined
+                    const note = item.noteId ? noteById.get(item.noteId) : undefined
                     return (
                       <button
                         key={item.id}

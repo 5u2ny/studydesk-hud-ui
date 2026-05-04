@@ -603,20 +603,17 @@ body {
   min-height: 100%;
 }
 
-body {
-  background:
-    radial-gradient(circle at 13% 17%, rgba(255, 213, 157, 0.75), transparent 16%),
-    radial-gradient(circle at 74% 6%, rgba(238, 214, 201, 0.52), transparent 18%),
-    radial-gradient(circle at 68% 62%, rgba(196, 222, 255, 0.85), transparent 26%),
-    linear-gradient(135deg, #0b62b8 0%, #2b8de5 18%, #e8f2ff 45%, #70b8ff 72%, #0058c9 100%);
-}
+/* Removed: stray unscoped `body { background: linear-gradient... }` left
+   over from a fullscreen popover prototype. It painted an opaque blue
+   gradient over the entire transparent panel, causing the persistent
+   "blue bar" overlay seen on every desktop. The floating window is a
+   transparent always-on-top panel — body must stay transparent and only
+   the inner notch/HUD shells paint their own backgrounds. */
 
-#root {
-  padding: 47px 43px 61px;
-  align-items: flex-start;
-  justify-content: center;
-  overflow: hidden;
-}
+/* Likewise: the global #root padding belonged to the same prototype.
+   It pushed the actual HUD content 47px down and 43px in, leaving the
+   blue gradient as visible empty space. The notch/HUD shells handle
+   their own padding now. */
 
 .island-popover-header {
   min-height: 123px;

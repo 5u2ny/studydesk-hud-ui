@@ -101,7 +101,11 @@ export class WindowManager {
     });
 
     win.setAlwaysOnTop(true, 'screen-saver');
-    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    // Don't follow the user into fullscreen apps — the HUD is already
+    // always-on-top across regular Spaces, which is plenty. Painting it
+    // over fullscreen video / fullscreen IDE was the "always appears"
+    // complaint.
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
     win.loadURL(getRendererUrl('floating'));
 
     const applyNotchPanel = () => {
@@ -117,17 +121,26 @@ export class WindowManager {
     };
 
     win.once('ready-to-show', () => {
+      // One-time show + native subclass so AppKit positions the panel
+      // and notch_helper takes effect, then immediately hide so the HUD
+      // doesn't paint over the user's screen. Cmd+Shift+Space (handled
+      // in src/main/index.ts) toggles it on; the tray menu also has a
+      // "Show" item. Use both setOpacity(0) and hide() because some
+      // panel types ignore hide() under setVisibleOnAllWorkspaces.
       win.show();
-      // Run AFTER show so AppKit's own positioning has fired and our
-      // unconstrained subclass + CGSSpace placement is the last word.
       applyNotchPanel();
-    });
-    setTimeout(() => {
-      if (!win.isDestroyed() && !win.isVisible()) {
-        win.show();
-        applyNotchPanel();
-      }
-    }, 500);
+      setTimeout(() => {
+        if (win.isDestroyed()) return
+        win.setOpacity(0)
+        win.hide()
+      }, 50)
+    })
+
+    // Whenever the user toggles the HUD on, restore opacity (the initial
+    // hide left it at 0). Idempotent — no-op once opacity is back to 1.
+    win.on('show', () => {
+      if (!win.isDestroyed() && win.getOpacity() < 1) win.setOpacity(1)
+    })
     // Forward renderer console + crash diagnostics to the terminal log.
     win.webContents.on('console-message', (_e, level, msg, line, src) => {
       if (level >= 2) console.log(`[renderer:${level}] ${msg} (${src}:${line})`);

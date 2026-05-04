@@ -161,19 +161,23 @@ function noteText(content: string): string {
 function countMaterialUsages(notes: Note[], materialPath: string): number {
   if (!materialPath) return 0
   let count = 0
+  // Iterative DFS so we can early-exit cleanly when a match is found —
+  // forEach can't break, and walking siblings of a hit wastes work on
+  // large notes.
   for (const note of notes) {
     let json: any
     try { json = JSON.parse(note.content) } catch { continue }
+    const stack: any[] = [json]
     let found = false
-    const walk = (n: any) => {
-      if (found || !n) return
+    while (stack.length && !found) {
+      const n = stack.pop()
+      if (!n) continue
       if (n.type === 'sourceQuote' && n.attrs?.sourcePath === materialPath) {
         found = true
-        return
+        break
       }
-      if (Array.isArray(n.content)) n.content.forEach(walk)
+      if (Array.isArray(n.content)) for (const c of n.content) stack.push(c)
     }
-    walk(json)
     if (found) count++
   }
   return count
