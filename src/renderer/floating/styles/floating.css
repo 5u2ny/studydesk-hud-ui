@@ -234,6 +234,53 @@ body {
   border: 1px solid rgba(15, 23, 42, 0.09);
 }
 .student-action-strip.slim { grid-template-columns: minmax(0, 1fr) auto; padding: 0; border: 0; background: transparent; margin-bottom: 12px; }
+
+/* quickAddMagic live preview pills (Vikunja port) */
+.quickadd-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin: 6px 0 10px;
+  padding: 0 2px;
+}
+.quickadd-preview-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.40);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 2px;
+}
+.quickadd-preview-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.quickadd-preview-date {
+  background: rgba(40, 123, 255, 0.16);
+  border: 1px solid rgba(40, 123, 255, 0.28);
+  color: #5fa1ff;
+}
+.quickadd-preview-course {
+  background: rgba(16, 166, 163, 0.16);
+  border: 1px solid rgba(16, 166, 163, 0.28);
+  color: #6ee0dc;
+}
+.quickadd-preview-label-tag {
+  background: rgba(149, 90, 255, 0.16);
+  border: 1px solid rgba(149, 90, 255, 0.28);
+  color: #b48fff;
+}
+.quickadd-preview-priority {
+  background: rgba(255, 107, 45, 0.18);
+  border: 1px solid rgba(255, 107, 45, 0.30);
+  color: #ff8b5e;
+}
 .student-action-strip input {
   color: #111827 !important;
   background: #fff !important;

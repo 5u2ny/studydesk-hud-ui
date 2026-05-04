@@ -20,6 +20,7 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { Button } from '@shared/ui/button'
 import { Input } from '@shared/ui/input'
 import { cn } from '@shared/lib/utils'
+import { parseQuickAdd } from '@shared/lib/quickAddMagic'
 import {
   getNotchBadges,
   getNotchIdleChips,
@@ -234,19 +235,44 @@ export default function App() {
   }, [newCourseName, newCourseCode, refreshAcademic])
 
   const addDeadline = useCallback(async () => {
-    if (!newDeadlineTitle.trim() || !newDeadlineDate) return
-    const parsed = new Date(newDeadlineDate)
-    if (Number.isNaN(parsed.getTime())) return
+    // Vikunja-port quickAddMagic: one input parses title + date + labels +
+    // course code (+) + priority (!) all at once. The first input field
+    // (newDeadlineTitle) is now the natural-language entry; newDeadlineDate
+    // is kept as a fallback if the user pasted a raw date string.
+    const raw = newDeadlineTitle.trim()
+    if (!raw) return
+
+    const parsed = parseQuickAdd(raw)
+    let deadlineAt: number | undefined = parsed.deadlineAt
+    // Fallback: secondary input still has a typed date
+    if (!deadlineAt && newDeadlineDate) {
+      const d = new Date(newDeadlineDate)
+      if (!Number.isNaN(d.getTime())) deadlineAt = d.getTime()
+    }
+    if (!deadlineAt) return  // can't create a deadline without a date
+
+    // Resolve +courseCode to a course id (case-insensitive match against
+    // both `code` and `name`)
+    let courseId: string | undefined
+    if (parsed.courseCode) {
+      const q = parsed.courseCode.toLowerCase()
+      const match = courses.find(c =>
+        (c.code ?? '').toLowerCase() === q || c.name.toLowerCase() === q
+      )
+      if (match) courseId = match.id
+    }
+
     await ipc.invoke('deadline:create', {
-      title: newDeadlineTitle.trim(),
-      deadlineAt: parsed.getTime(),
+      title: parsed.title || raw,
+      deadlineAt,
       type: 'assignment',
+      courseId,
       confirmed: true,
     })
     setNewDeadlineTitle('')
     setNewDeadlineDate('')
     await refreshAcademic()
-  }, [newDeadlineTitle, newDeadlineDate, refreshAcademic])
+  }, [newDeadlineTitle, newDeadlineDate, courses, refreshAcademic])
 
   const completeDeadline = useCallback(async (id: string) => {
     await ipc.invoke('deadline:complete', { id })
@@ -464,19 +490,48 @@ export default function App() {
             </CompactList>
           </PopoverPanel>
         )
-      case 'deadlines':
+      case 'deadlines': {
+        const preview = newDeadlineTitle.trim() ? parseQuickAdd(newDeadlineTitle) : null
+        const previewDate = preview?.deadlineAt
+          ? new Date(preview.deadlineAt).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+          : null
         return (
           <PopoverPanel title="Deadlines" subtitle="Due work, not calendar clutter">
+            {/* quickAddMagic input (Vikunja port): one-line natural-language
+                entry. Accepts patterns like:
+                  "Read Kant ch.3 tomorrow at 5pm +philosophy *urgent !1"
+                where +<code> = course, *<label> = tag, !<1-5> = priority. */}
             <section className="student-action-strip compact-form">
-              <Input value={newDeadlineTitle} onChange={e => setNewDeadlineTitle(e.target.value)} placeholder="What is due?" />
-              <Input value={newDeadlineDate} onChange={e => setNewDeadlineDate(e.target.value)} onKeyDown={e => e.key === 'Enter' && addDeadline()} placeholder="Apr 20, 11:59 PM" />
-              <Button variant="phase" onClick={addDeadline} disabled={!newDeadlineTitle.trim() || !newDeadlineDate}><Plus size={15} /> Add</Button>
+              <Input
+                value={newDeadlineTitle}
+                onChange={e => setNewDeadlineTitle(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addDeadline()}
+                placeholder="Quiz tomorrow 5pm +BUAD *exam !1"
+              />
+              <Button variant="phase" onClick={addDeadline} disabled={!preview?.deadlineAt}><Plus size={15} /> Add</Button>
             </section>
+            {/* Live parse preview — so users see what was extracted */}
+            {preview && previewDate && (
+              <div className="quickadd-preview">
+                <span className="quickadd-preview-label">Parsed:</span>
+                <span className="quickadd-preview-pill quickadd-preview-date">{previewDate}</span>
+                {preview.courseCode && (
+                  <span className="quickadd-preview-pill quickadd-preview-course">+{preview.courseCode}</span>
+                )}
+                {preview.labels.map(l => (
+                  <span key={l} className="quickadd-preview-pill quickadd-preview-label-tag">*{l}</span>
+                ))}
+                {preview.priority && (
+                  <span className="quickadd-preview-pill quickadd-preview-priority">!{preview.priority}</span>
+                )}
+              </div>
+            )}
             <CompactList>
               {deadlines.slice(0, 5).map(d => <DeadlineRow key={d.id} d={d} onComplete={() => completeDeadline(d.id)} />)}
             </CompactList>
           </PopoverPanel>
         )
+      }
       case 'capture':
         return (
           <PopoverPanel title="Capture" subtitle="Turn highlights into study material">
