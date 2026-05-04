@@ -1,0 +1,265 @@
+BUAD 6621: Project Management
+Spring 2026
+Last modified: March 20, 2026
+Professor: Dr. Eleanor Loiacono
+E-mail: eloiacono@wm.edu
+Phone: (757) 221-2054
+Office: Miller Hall, Room 3026
+Office Hours: By appointment
+Course Place & Time: MH 1019, Monday and Wednesday 11:00 – 12:20 AM
+Disclaimer: The instructor reserves the right to amend, adjust, or otherwise modify this course outline/syllabus at any time during the course. The students should check the syllabus on Blackboard since it is the ultimate version and overrides any other versions, revisions, etc. It is each student’s sole responsibility to keep abreast of any changes. The instructor reserves the right to make changes to this syllabus throughout the term.
+COURSE DESCRIPTION
+This course will focus on the concepts and tools related to the management of projects within organizations. Students will examine all phases of project management, including selection, planning, scheduling, control, and termination. Topics include writing project plans, developing work breakdown structures, project scheduling, project management tools, resource management, earned value analysis, and project risk management.
+LEARNING GOALS AND OBJECTIVES
+Upon successful completion of this course, you will be able to:
+Identify and explain project management resources, issues, and best practices.
+Demonstrate a project management tool to fellow classmates.
+Develop a project charter.
+Create and present a project management plan.
+Produce a project schedule using a project management tool.
+Apply project management knowledge through a project management simulation and project reflection.
+Leverage AI strategically for insights, prediction, and ethical delivery.
+QUICK LINKS
+Course Grading
+Quizzes
+Assignments
+Course Calendar
+COURSE MATERIALS
+Book, Simulation, & AI Tool:
+If necessary, other required reading material will be made available via Blackboard.
+MS Project:  We will use Microsoft Project 2016 software during the course. For PC and Mac, you will need to access MS Project through the virtual desktop. I have contacted Mason IT and asked that all students be given access to it.  Check out: Learn Microsoft Project in 15 minutes: https://www.youtube.com/watch?v=rWxUX2So-H4.
+Access to the virtual desktop is at https://vdesktop.wm.edu (see Figure 1). Once there, 1) Click on Business Courses start button; 2) Wait for it to connect; 3) Enter your WM password when prompted; and 4) Click start icon  to go to Office Suite. Once there, click on Project (see Figure 2). Besides using the virtual desktop for Microsoft Project, you can use one of the computers in the Financial Markets room in Miller Hall. Computers 1-7 in the Financial Markets classroom should have MS Project installed.
+Figure : Getting to MS Project
+COURSE GRADING
+The course grade will be determined as follows.
+Participation/In-class Activities	 100 points
+(Two “personal” absences allowed without penalty)
+Quizzes	 200 points
+(Six worth 20 points each, Lowest quiz grade dropped)
+Project Management Simulation Games:	 200 points
+(SIM1…100 points, SIM2…100 points)
+Project Charter: 	 100 points
+Project Management Plan Project:	 100 points
+Team Evaluation:	   50 points
+AI Pre & Post Assessments:	   50 points
+(Pre-Survey…25 points, Post-Survey…25 points)
+Project Management with AI
+Weekly Reflection Journal:	  200 points
+TOTAL POINTS	1000 points
+Grading Standards:
+All group assignments will be weighted by the group peer evaluation, to be conducted at the end of the course. NOTE 1: Grades are not rounded up and meeting defined requirements does not guarantee an A or A-. NOTE 2: “C-“ is the lowest passing grade on the School of Business graduate grading scale. Please review the graduate catalog if you have questions.
+COURSE POLICIES
+Please turn off all mobile phones before class starts. You should not answer phone calls or engage in messaging during class. If you have an emergency, please leave the classroom respectfully. Bring your laptop with you to class. There will be many classes where we will explore project management tools or complete in-class exercises covering the material we are learning. Please refrain from email, non-relevant web surfing, etc., during class.
+COURSE ATTENDANCE & PARTICIPATION
+Regular class attendance and participation are required. Participation consists of making intelligent comments, asking worthwhile questions, raising interesting points, and participating in class activities. If a student needs to miss a class for any reason, he or she should contact the professor beforehand. (I will allow 2 absences without penalty due to interviews or personal matters). Students are responsible for all material covered, including class assignments, from any missed classes.  Attendance will be taken in class. If you are late when attendance is taken, you will be considered absent from the class. If a student has a job interview during class, he or she must forward the email to the Graduate Career Management Center prior to the interview, in addition to contacting the professor. The professor should be contacted in advance of any missed class. It is disruptive for students to leave class once it starts. Please make sure you attend to all personal matters during designated breaks.
+Your class participation will primarily be evaluated on:
+being a good listener
+evidence of careful preparation for in-class exercises and case studies
+willingness to present your solution or idea to the class
+clarity and conciseness of your comments in class
+willingness and ability to help others
+QUIZZES
+There will be six quizzes covering twelve chapters of the Schneider et al. book (CATEGORY A, Level 1). The lowest quiz score will be dropped. These quizzes align with the course learning objective of “identifying and explaining project management resources, issues, and best practices.” Each quiz will be available from Wednesday at noon, before it is due, until Friday evening at 11:59 PM, when it is due. Quizzes are open-book and open-notes, consisting of 20 questions, each worth 1 point.
+TEAMS
+Each team will consist of 3-5 students. This should ensure that each team member contributes substantially to each group assignment.
+ASSIGNMENTS:
+Details of each assignment (including a grading rubric) are contained within the corresponding document under Assignments in the Course Content area.
+PROJECT MANAGEMENT SIMULATION GAME (SIM 1 & SIM 2)
+An essential part of this course is to apply the project management knowledge you have gained in the course to a simulated model (Scenario A). This will allow you to test and reflect on your understanding and comprehension of the course material in a seemingly real environment. The SIM1 assignment is a group/team assignment (CATEGORY B, Level 3). Each team will turn in a memo describing their approach to the project, their results, and the lessons they learned that could be applied to real-world projects.
+NOTE: In SIM 2, you will be doing an individual attempt on another version of the simulation, so do not rely on just one team member purchasing it.
+The SIM2 assignment will allow you to test your individual understanding and comprehension of the course material in another safe yet seemingly real environment (Scenario B). This assignment is an individual assignment (CATEGORY A, Level 2).
+PROJECT CHARTER (ProjCharter) & MANAGEMENT PLAN (PMP) PROJECT
+Details of the Project Charter (ProjCharter) and the final project management plan deliverable (PMP) are available on Blackboard. The ProjCharter and PMP are group/team assignments (CATEGORY B, Level 4). A project manager creates a brief document called the project charter. It establishes the project's foundation and authorizes the use of resources. In the Team Evaluation assignment, you will evaluate all team members (including yourself) on each team member’s value-add to the final product. Leadership and effort will be viewed favorably, while the lack of adequate participation will adversely impact your grade.
+AI PRE & POST ASSESSMENTS
+You will complete a pre- and post-survey to help measure your AI competency and confidence. If fully completed, you will receive full credit.
+AI PROMPT REFLECTION JOURNAL
+You will maintain a reflection journal documenting your journey of integrating AI into project management practices. This portfolio will serve as both a learning tool and an assessment of your developing AI competencies.
+TEAM EVALUATION
+You will evaluate yourself and your teammates. The results of the team evaluations will be factored into your final grade and can affect your overall grade by up to 10%. Meaning it can raise or lower your grade based on the feedback you receive. Not turning in a team evaluation will negatively affect your final grade.
+ASSIGNMENT SUBMISSION
+Please use the following file naming convention.
+Individual assignments: LastName_FirstInitial_AssignmentName (ex. Smith J PPR.pdf).
+Team assignments: Team#_AssignmentName (ex. Team 1 SIM 1.pdf).
+HONOR CODE & ACADEMIC INTEGRITY
+"As a member of the William and Mary community, I pledge on my honor not to lie, cheat, or steal, either in my academic or personal life. I understand that such acts violate the Honor Code and undermine the community of trust, of which we are all stewards."
+Academic integrity is an integral component of the College of William and Mary learning experience, and any breech of this integrity is very serious and not in keeping with the overall intellectual and ethical foundations of our university. Students are expected to adhere to the College of William and Mary Honor Code and to the general principles of academic honesty. These principles include and incorporate the concept of respect for the intellectual property of others, the expectation that assignments will be submitted according to guidelines specified by the instructor, and that plagiarism of any type is unacceptable.
+Within the Mason School of Business, we have developed an Assignment Code and every assignment given in this course will be identified by a code letter. If there are questions related to how an assignment is to be carried out, it is essential that you ask your professor for clarification.
+The code is as follows:
+CATEGORY A: This is an individual assignment. You may not receive help from anyone on this assignment. It must be 100% your own work. All questions concerning this assignment should be addressed to your professor. It is an honor code offense to give or receive assistance on this assignment.
+CATEGORY B: This is a group assignment. Your group may not receive help from anyone outside your group. While your group may choose to delegate the work among the group members, everyone in the group is expected to be prepared to discuss the entire assignment in class. All questions concerning this assignment should be addressed to your professor. It is an honor code offense to give help to other groups and individuals or receive assistance from other groups and individuals.
+CATEGORY C: This is an individual assignment. You may work with others or receive help from a tutor on this assignment. You must, however, turn in your own paper. You may not divide the work with others or copy another student’s paper; it is an honor code offense to do so.
+CATEGORY D: This is a group assignment. You may share information, discuss general concepts and approaches to the assignment with other groups. Everyone in the group should be prepared to discuss the entire assignment in class. Each group must turn in its own work. You may not copy another group’s work; it is an honor code offense to do so.
+CATEGORY E: This is a timed assignment. You are given a specific length of time within which the work must be completed. It is an honor code offense to violate this time restriction unless you have received permission from your professor.
+ARTIFICIAL INTELLIGENCE (AI) USAGE
+Student Use of AI
+Students are encouraged to use AI tools ethically for brainstorming, drafting, research, etc. When using AI:
+- You must disclose AI use and describe how you used it
+- You remain responsible for all submitted work
+- AI should augment, not replace, your learning
+Developments in AI technology are advancing rapidly. Of note, many software platforms (e.g., Microsoft Office Suite) are expected to embed AI soon. To help guide you in your use of AI, I have provided the following categories:
+LEVEL 1 – No AI Assistance. You may not receive help from any AI tools, including editing applications (e.g., Grammarly), generative AI (e.g., ChatGPT), or AI tools integrated within software platforms (e.g., Microsoft Office). All work must be 100% your own. It is an honor code offense to use AI tools for assistance on this assignment in any way.
+LEVEL 2 –  AI for Learning and Practice. You may use AI tools for learning and practice. This means you can use AI to learn concepts, practice problem-solving, and enhance your understanding of the course material. However, any work submitted for grading must be 100% your own and not the result of AI assistance (i.e., the final work produced must be solely your own). It is an honor code offense to submit work for grading that was produced with the aid of AI.
+LEVEL 3 – AI for Brainstorming Only. You may use AI tools on your assignments for brainstorming only. This means that you can use AI to generate some initial ideas or inspiration. However, you must not copy or submit any content produced by AI as your own work. You must clearly indicate in your citations when and how you used AI for brainstorming purposes. It is an honor code offense to use AI tools for more
+than brainstorming without explicit permission.
+LEVEL 4 – AI for Limited or Specific Tasks. You may use AI tools as outlined by your instructor in the assignment guidelines. You must clearly indicate in your citations when and how you used AI for these purposes, and you cannot use AI to generate or assist in generating content beyond that outlined in the assignment. It is an honor code offense to use AI tools for more than the strictly outlined tasks without explicit permission.
+Note: The following AI is acceptable for all assignments: editing software (e.g., Grammarly) and those provided within project management tools.
+The following technique is helpful for judging AI output: Evaluating GenAI Outputs Using Lateral Reading Strategies.
+Instructor Use of AI in Grading
+I use artificial intelligence tools as part of my grading process to enhance the quality of feedback you receive. After reviewing your work, I consult AI to help identify additional feedback opportunities, frame comments constructively, and ensure my guidance supports your learning effectively. This process often requires more time than traditional grading because I'm committed to providing you with comprehensive, actionable feedback.
+Important clarifications:
+AI does not determine your grades or replace my professional judgment
+I review all AI-generated suggestions and make final decisions based on my expertise and understanding of your individual learning journey
+This practice models the responsible, transparent AI use I expect from you in this course
+I believe in practicing what I teach. Just as I encourage you to use AI thoughtfully to augment your learning, I use it to augment my teaching. I'm committed to transparency about these practices and welcome any questions or concerns.
+Our Shared AI Principles
+- Transparency in AI use
+- Human judgment and expertise remain central
+- AI as a tool for enhancement, not replacement
+- Continuous learning about responsible AI practices
+PLAGIARISM:
+The Internet provides vast resources for students to research topics and develop their personal knowledge. As a writer at the university level, we expect you to synthesize existing information and create your own argument. Merely copying the words of others is not sufficient, nor is stringing together a series of statements and information created by others. I encourage you to review the information provided by the Writing & Communication Center (https://www.wm.edu/as/wcc) and to consult with their consultants.
+The pursuit of knowledge often involves referring to other sources and building upon the prior work of others. We expect students to acknowledge these sources in the form of citation and, if using the words or phrases of others, direct quotation. A reader/reviewer should be able to discern what portion of your paper represents
+your original thought and argument. Plagiarism is “the presentation, with intent to deceive, or with disregard for proper scholarly procedures of a significant scope, of any information, ideas or phrasing of another as if they were one’s own without giving appropriate credit to the original source.”
+Proper scholarly procedures require you to organize your writing such that you keep track of original source material so you can cite it appropriately in your final paper. I recommend you develop a system to do so from the beginning of the course, and I would be happy to provide you with suggestions as to how to do so.
+ADA ACCOMMODATION
+William & Mary accommodates students with disabilities in accordance with federal laws and university policy. Any student who feels s/he may need an accommodation based on the impact of a learning, psychiatric, physical, or chronic health diagnosis should contact Student Accessibility Services staff at 757-221-2509 or at sas@wm.edu to determine if accommodations are warranted and to obtain an official letter of accommodation. For more information, please see www.wm.edu/sas. Additionally, when you have your letter, you should schedule an appointment with the professor to discuss your accommodations as soon as possible.
+DIVERSITY AND INCLUSION
+William and Mary welcomes students from around the country and around the world, and their unique perspectives enrich our learning community. It is our collective responsibility to create and foster an environment that is inclusive and respectful for all. To do this, we must demonstrate:
+· Respect and responsibility for self and others.
+· A spirit of generosity.
+· A life dedicated to inquisitive learning and development.
+· An acknowledgment that an individual’s own words, actions, and relationships show a commitment to these values.
+I would like to create a learning environment that supports a diversity of thoughts, perspectives, and experiences and honors your identity. To help accomplish this, please notify me:
+· If you have a name and/or set of pronouns that differ from those that appear in your official W&M records.
+· If you feel like your performance in the class is being impacted by your experiences outside of class.
+· If another student or I said or did something in class that made someone feel uncomfortable or offended.
+COURSE COMMUNICATION
+Blackboard is the primary mechanism for disseminating course information, such as announcements, lectures, homework, and other assignments. Communication with me on issues relating to the individual student should be conducted using emails, via telephone, or in person - not in a public forum such as Zoom.
+Emails are the preferred method – for urgent messages, students should also attempt to contact me via telephone. Federal privacy law and WPI policy require that any communication with a student related in any way to a student's status be conducted using secure William and Mary systems – if students use emails to communicate with me, they MUST send messages from their W&M email accounts. I will not discuss issues relating to an individual student with other students (or anyone without a need to know) without prior permission from the student.
+*Note that I aim to respond to students’ messages within 24 hours when possible.
+All course materials (lecture slides, assignment specifications, etc.) are located on the course Blackboard site in Adobe® Portable Document Format (PDF) or in a format for which a free reader is available (such as Microsoft PowerPoint). This allows users of most computing platforms to view and print these files. Microsoft® Word (or a compatible word processing application) is required for preparing assignments.
+ELECTRONIC DEVICES IN CLASS
+The use of laptops, iPads, and similar electronic devices in class is allowed. Many students take notes, perform computations, etc., using their laptops or other devices. However, once class begins, please do not use your electronic device for surfing the internet or checking your e-mail. My experience over the last several years is that this is highly distracting to other students.
+NOTICE OF COPYRIGHT
+All course materials, including the syllabus, lectures, presentations, recordings, quizzes, assessments, tests, exams, outlines, assignments, electronic files, and similar materials, for this course are protected by copyright and are the sole property of the course instructor. You may use these materials for your personal, non-commercial educational use. You may not, nor may you knowingly allow others to reproduce or distribute any course materials publicly without the express written consent of the instructor. This includes providing materials to commercial course material suppliers such as Course Hero and other similar services. To do so is both a copyright violation and a violation of W&M’s Honor Code.
+CLASS RECORDINGS MADE BY INSTRUCTOR
+In some circumstances, the professor may choose to record the class meetings. Such recordings will be available only to students registered for this class (as required by FERPA). This is intended to supplement the classroom experience. Students are expected to follow appropriate university policies and maintain the security of passwords used to access recorded lectures. Recordings may not be reproduced, shared with those not in the class, or uploaded to other online environments; violations may be subject to disciplinary action. If the instructor or a William & Mary office plans any other uses for the recordings beyond this class, students identifiable in the recordings will be notified to request consent prior to such use.
+RECORDING CLASS SESSIONS BY STUDENTS
+Students are strictly prohibited from recording class sessions and other interactions with the instructor using any type of technology unless permission has been granted by the Student Accessibility Services. Recordings and synchronous class sessions provided by the instructor are protected by both copyright and the Family Education Rights and Privacy Act (FERPA) and may not be shared or redistributed to anyone at any time now or in the future. To do so is both a violation of law and of W&M’s Honor Code.
+TECHNOLOGY POLICY
+Use of technology can have a positive impact on your learning, but engaging in non-class related activities can also have a strong, negative impact on your learning and your colleagues’ learning. Laptops should be brought to every class. During the in-class assessments, exercises, and practice, students will be using laptops. Only applications directly relevant to the coursework will be allowed. Other devices, such as mobile phones, are not to be used at any time in class. To remove temptation and misunderstandings, your mobile phones should be on silent and placed in your bag, not out in the open.
+If necessary, Zoom may be used by the instructor for some classes.
+ZOOM PROTOCOL
+Before connecting with a Zoom session, log into Zoom either on the W&M Zoom website (cwm.zoom.us) or using the Zoom desktop app. This permits the verification of approved Zoom participation via your WM email address and the use of Zoom breakout rooms. When joining a Zoom session, please change your Zoom screen name to your preferred name (i.e., the name you wish me to use to address you in class) if different from the default name shown in Zoom.
+ZOOM ETIQUETTE
+Please be on time when entering a Zoom session, remain muted unless you have a question, and keep your video on during the entire class session. To replicate the in-person experience for all students, you must show your video during the class session. You may use a virtual background if you wish, but all participants should be able to see you as if you were in the physical classroom.
+Before connecting with a Zoom session, log into Zoom either on the W&M Zoom website (cwm.zoom.us) or using the Zoom desktop app. This permits the verification of approved Zoom participation via your WM email address and the use of Zoom breakout rooms. When joining a Zoom session, please change your Zoom screen name to your preferred name (i.e., the name you wish me to use to address you in class) if different from the default name shown in Zoom. Because you may need to join a Zoom session while in the classroom, please bring a device capable of connecting to Zoom, an Ethernet cable, and a quality headset (preferably noise-canceling) with a built-in microphone.
+NOTE:
+The Certified Assistant Project Manager (CAPM) Certification Exam.  Many students are interested in sitting for the CAPM exam. It is a very well-regarded certification and will open a lot of doors for you in your professional career. The best source of information about the CAPM exam is the CAPM Handbook available free from the PMI.org website:
+http://www.pmi.org/certification/certified-associate-project-management-capm.aspx.
+The Project Management Professional (PMP) Certification Exam is a globally recognized credential that validates a person’s expertise in leading projects, teams, and business priorities across industries. You need 3 to 5 years of work experience. See https://www.pmi.org/certifications/project-management-pmp for more details.
+BUAD 6621 COURSE CALENDAR
+The class topics, assignments, and tentative schedule are shown below. Please note that this is a TENTATIVE schedule, which is subject to change.
+Tentative Course Schedule…
+Information Systems Project Management: A Process Approach
+Edition 2.0 | Copyright 2020 | Prospect Press | Publication Date: January 2019
+Christoph Schneider, City University of Hong Kong
+Mark A. Fuller, University of Massachusetts Amherst
+Joseph S. Valacich, The University of Arizona
+Joey F. George, Iowa State University
+https://www.prospectpressvt.com/textbooks/schneider-information-systems-project-management
+
+STUDENT DIRECT - ORDERING INFORMATION:
+Direct links to online retailers are available at the publisher's website here:
+https://www.prospectpressvt.com/textbooks/schneider-information-systems-project-management
+Scroll to the green "Ordering Information" menu bar, and you will find direct links for eTextbooks and paperbacks.
+Harvard Business Simulation:
+BUAD 6621: https://hbsp.harvard.edu/import/1367478
+Student price: $16.25
+We will be using BoodleBox.AI as a tool throughout the course. Please be sure to obtain an account and go through the getting started tutorial below. 
+
+Getting started: https://boodlebox.ai/blog/support/get-started-with-boodlebox/
+*Optional*
+A Guide to the Project Management Body of Knowledge (PMBOK® Guide) –Seventh Edition and The Standard for Project Management (ENGLISH)  Seventh edition
+by Project Management Institute
+Amazon price approximately: $41.00 - $54.45 (Paperback)
+
+Link to Version 7 currently being used for exam.
+Grade | Score | Description
+A | 95% 
+and higher | Work that is well above graduate standards. Marked by superior integration of ideas, richness of interpretation, and effective use of source material as conveyed in course deliverables.
+A- | 90% - 94% | Work that is above graduate standards. Marked by excellent integration of ideas, richness of interpretation, and effective use of source material as conveyed in course deliverables.
+B+ | 87% - 89% | Very good graduate level work. Well-developed and articulated arguments and good application of class concepts as conveyed in course deliverables.
+B | 83% - 86% | Good graduate level work. Well-developed arguments and good application of class concepts as conveyed in course deliverables.
+B- | 80% - 82% | Solid graduate level work. Nicely developed arguments and application of class concepts as conveyed in course deliverables.
+C+ | 77% - 79% | Adequate graduate level work that is acceptable but below graduate expectations.  Usually marked by reasonable conclusions that are supported with superficial arguments as conveyed in course deliverables.
+C | 73% - 76% | Adequate graduate level work that is acceptable but below graduate expectations.  Usually marked by reasonable conclusions that are supported with superficial arguments as conveyed in course deliverables.
+C- | 70% - 72% | Adequate graduate level work that is acceptable but below graduate expectations.  Usually marked by reasonable conclusions that are supported with superficial arguments as conveyed in course deliverables.
+F | Below 70% | Work that is unacceptable and below graduate expectations. Marked by a lack of course material understanding and ability to convey it through deliverables.
+Class & Date | Topic | Due Date | Due Date
+WEEK 1 | WEEK 1 | WEEK 1 | WEEK 1
+Class 1: Wednesday (1/21) | Introduction to Course & Expectations |  | 
+ |  | 1/23 (Friday), 11:59PM: Pre-Assessment Survey & Team Formation Preference Form | 1/23 (Friday), 11:59PM: Pre-Assessment Survey & Team Formation Preference Form
+I. PROJECT MANAGEMENT FOUNDATIONS | I. PROJECT MANAGEMENT FOUNDATIONS | I. PROJECT MANAGEMENT FOUNDATIONS | I. PROJECT MANAGEMENT FOUNDATIONS
+WEEK 2 | WEEK 2 | WEEK 2 | WEEK 2
+Class 2: Monday (1/26) | Introduction to Project Management | Read Chapter 1 by Class 2. | Read Chapter 1 by Class 2.
+Class 3: Wednesday (1/28) | The Project Life Cycle | Read Chapter 2 by Class 3. | Read Chapter 2 by Class 3.
+ |  | 1/30 (Friday), 11:59PM: Quiz 1 – covers Chapter 1 & 2 & Weekly Journal Entry | 1/30 (Friday), 11:59PM: Quiz 1 – covers Chapter 1 & 2 & Weekly Journal Entry
+WEEK 3 | WEEK 3 |  | 
+Class 4: Monday (2/2) | Microsoft Project Tutorial | 2/2, 11:59PM: Purchase Simulation Packet. | 2/2, 11:59PM: Purchase Simulation Packet.
+Class 5: Wednesday (2/4) | Managing Project Teams | Read Chapter 3 by Class 5. | Read Chapter 3 by Class 5.
+ |  | 2/6 (Friday), 11:59PM: Monthly Journal Synthesis Reflection | 2/6 (Friday), 11:59PM: Monthly Journal Synthesis Reflection
+WEEK 4 | WEEK 4 | WEEK 4 | WEEK 4
+Class 6: Monday (2/9) | Managing Project Stakeholders & Communication | Read Chapter 4 & Part 1 Appendix by Class 6. | Read Chapter 4 & Part 1 Appendix by Class 6.
+Class 7: Wednesday (2/11) | Activity |  | 
+ |  | 2/13 (Friday), 11:59PM: Quiz 2 – covers Chapter 3 & 4 & Weekly Journal Entry | 2/13 (Friday), 11:59PM: Quiz 2 – covers Chapter 3 & 4 & Weekly Journal Entry
+WEEK 5 | WEEK 5 | WEEK 5 | WEEK 5
+Class 8: Monday (2/16) | Managing Project Scope | Read Chapter 5 by Class 8. | Read Chapter 5 by Class 8.
+Class 9: Wednesday (2/18) | Project Charter & PMP | Review PMPs by Class 9. | Review PMPs by Class 9.
+ |  | 2/20 (Friday), 11:59PM: ProjCharter & Weekly Journal Entry | 2/20 (Friday), 11:59PM: ProjCharter & Weekly Journal Entry
+II. STARTING, ORGANIZING, & PREPARING THE PROJECT | II. STARTING, ORGANIZING, & PREPARING THE PROJECT | II. STARTING, ORGANIZING, & PREPARING THE PROJECT | II. STARTING, ORGANIZING, & PREPARING THE PROJECT
+WEEK 6 | WEEK 6 | WEEK 6 | WEEK 6
+Class 10: Monday (2/23) | Managing Project Scheduling | Read Chapter 6 by Class 10. | Read Chapter 6 by Class 10.
+Class 11: Wednesday (2/25) | Activity |  | 
+ |  | 2/27 (Friday), 11:59PM: Quiz 3– covers Chapter 5 & 6 & Weekly Journal Entry | 2/27 (Friday), 11:59PM: Quiz 3– covers Chapter 5 & 6 & Weekly Journal Entry
+ |  | 3/1 (Sunday), 11:59PM: SIM1 | 3/1 (Sunday), 11:59PM: SIM1
+WEEK 7 | WEEK 7 | WEEK 7 | WEEK 7
+Class 12: Monday (3/2) | Activity - Project Management Tool Deep Dive |  | 
+Class 13: Wednesday (3/4) | Activity - Project Management Tool Deep Dive |  | 
+ |  | 3/5 (Friday), 11:59PM: Weekly Journal Entry | 3/5 (Friday), 11:59PM: Weekly Journal Entry
+SPRING BREAK – NO CLASSES (March 9-13) | SPRING BREAK – NO CLASSES (March 9-13) | SPRING BREAK – NO CLASSES (March 9-13) | SPRING BREAK – NO CLASSES (March 9-13)
+SPRINT WEEK – NO CLASSES (March 16 – 20) | SPRINT WEEK – NO CLASSES (March 16 – 20) | SPRINT WEEK – NO CLASSES (March 16 – 20) | SPRINT WEEK – NO CLASSES (March 16 – 20)
+Class & Date | Topic | Due Date
+WEEK 8 | WEEK 8 | WEEK 8
+Class 14: Monday (3/23) | Managing Project Resources | Read Chapter 7 by Class 14.
+Class 15: Wednesday (3/25) | Activity | 
+ |  | 3/27  (Friday), 11:59PM: SIM2 & Optional Weekly Journal Entry.
+WEEK 9 | WEEK 9 | WEEK 9
+Class 16: Monday (3/30) | Managing Project Costs and Quality | Read Chapter 8 by Class 16.
+Class 17: Wednesday (4/1) | Activity | 
+ |  | 4/3 (Friday), 11:59PM: Quiz 4 – covers Chapter 7 & 8 & Optional Weekly Journal Entry.
+III. EXECUTING, CONTROLLING, & ENDING THE PROJECT | III. EXECUTING, CONTROLLING, & ENDING THE PROJECT | III. EXECUTING, CONTROLLING, & ENDING THE PROJECT
+WEEK 10 | WEEK 10 | WEEK 10
+Class 18: Monday (4/6) | Managing Project Risk | Read Chapter 9 by Class 18.
+Class 19: Wednesday (4/8) | Activity | 
+ |  | 4/10 (Friday), 11:59PM: Monthly Journal Synthesis Reflection.
+WEEK 11 | WEEK 11 | WEEK 11
+Class 20: Monday (4/13) | Managing Project Procurement | Read Chapter 10 & Part II Appendix by Class 21.
+Class 21: Wednesday (4/15) | Activity | 
+ |  | 4/17 (Friday), 11:59PM: Quiz 5 – covers Chapter 9 & 10 & Optional Weekly Journal Entry.
+WEEK 12 | WEEK 12 | WEEK 12
+Class 22: Monday (4/20) | Managing Project Execution | Read Chapter 11 by Class 22.
+Class 23: Wednesday (4/22) | Activity | 
+ |  | 4/24 (Friday), 11:59PM: Optional Weekly Journal Entry.
+WEEK 13 | WEEK 13 | WEEK 13
+Class 24: Monday (4/27) | Managing Project Control & Closure | Read Chapter 12 & Part III Appendix by Class 25. 
+4/27  (Monday), 11:59PM: Post-Assessment Survey.
+Class 25: Wednesday (4/29) | Activity | 
+ |  | 5/1 (Friday), 11:59PM: Quiz 6 – covers Chapter 11 & 12 & Optional Weekly Journal Entry.
+WEEK 14 | WEEK 14 | WEEK 14
+Class 26: Monday (5/4) | Presentations | 5/4, (Monday) 8:00AM: PMP Presentation & Slides
+Class 27: Wednesday (5/6) | Presentations | 5/6, (Wednesday) 11:59PM: Team Evaluation & Final Journal Synthesis Reflection.
+KEY: | 
+Text in red | Required to be completed & submitted.
+Text in yellow highlight | Optional Journal Assignment that will count towards 8 mandatory entries.
+*NOTE: Monthly Journal Entry (due on 4/10) and Final Journal Entry (due on 5/6) must be completed. | *NOTE: Monthly Journal Entry (due on 4/10) and Final Journal Entry (due on 5/6) must be completed.

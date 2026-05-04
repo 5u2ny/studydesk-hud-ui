@@ -2724,7 +2724,12 @@ function quickAddTitle(kind: QuickAddKind) {
 }
 
 function EmptyHint({ message, hint }: { message: string; hint: string }) {
-  return <div className="empty-hint"><strong>{message}</strong><span>{hint}</span></div>
+  return (
+    <div className="empty-hint">
+      <strong>{message}</strong>
+      <span>{hint}</span>
+    </div>
+  )
 }
 
 function ChecklistRow({ label, done }: { label: string; done: boolean }) {
