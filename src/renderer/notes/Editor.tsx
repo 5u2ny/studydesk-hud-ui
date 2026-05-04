@@ -1,9 +1,12 @@
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useMemo, createRef } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import type { Note, Capture } from '@schema'
 import { parseContent } from './parseContent'
+import { createSlashCommandsExtension, type SlashItem } from './editor/slashCommands'
+import { SlashCommandPopup, type SlashCommandPopupHandle } from './editor/SlashCommandPopup'
 export { parseContent }
 
 interface Props {
@@ -16,8 +19,73 @@ export function Editor({ note, captures, onUpdate }: Props) {
   const saveTimer = useRef<number>(0)
   const lastContent = useRef<string>(note.content)
 
+  // Slash commands extension — created once per Editor instance.
+  // The render function below wires the suggestion plugin to a React popup
+  // mounted into a portal DOM element near the editor cursor.
+  const slashExtension = useMemo(() => createSlashCommandsExtension(() => {
+    let container: HTMLDivElement | null = null
+    let root: Root | null = null
+    const popupRef = createRef<SlashCommandPopupHandle>()
+
+    function ensureContainer() {
+      if (container) return container
+      container = document.createElement('div')
+      container.className = 'slash-popup-container'
+      document.body.appendChild(container)
+      root = createRoot(container)
+      return container
+    }
+
+    function position(rect: DOMRect | null) {
+      if (!container || !rect) return
+      const margin = 6
+      const popupW = 280
+      const popupH = 320
+      // Prefer below the caret; flip above if not enough room
+      let top = rect.bottom + margin
+      let left = rect.left
+      if (top + popupH > window.innerHeight) top = rect.top - popupH - margin
+      if (left + popupW > window.innerWidth) left = window.innerWidth - popupW - margin
+      container.style.position = 'fixed'
+      container.style.top = `${top}px`
+      container.style.left = `${left}px`
+      container.style.zIndex = '9999'
+    }
+
+    function render(items: SlashItem[], cmd: (item: SlashItem) => void) {
+      if (!root) return
+      root.render(<SlashCommandPopup ref={popupRef} items={items} command={cmd} />)
+    }
+
+    return {
+      onStart: (props) => {
+        ensureContainer()
+        position(props.clientRect?.() ?? null)
+        render(props.items, (item) => props.command(item as any))
+      },
+      onUpdate: (props) => {
+        position(props.clientRect?.() ?? null)
+        render(props.items, (item) => props.command(item as any))
+      },
+      onKeyDown: (props) => {
+        if (props.event.key === 'Escape') return false
+        return popupRef.current?.onKeyDown(props.event) ?? false
+      },
+      onExit: () => {
+        if (root) {
+          root.unmount()
+          root = null
+        }
+        if (container) {
+          container.remove()
+          container = null
+        }
+      },
+    }
+  }), [])
+
   const editor = useEditor({
-    extensions: [StarterKit, Underline],
+    extensions: [StarterKit, Underline, slashExtension],
     content: parseContent(note.content),
     onUpdate: ({ editor }) => {
       const json = JSON.stringify(editor.getJSON())

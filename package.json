@@ -68,6 +68,7 @@
     "@tiptap/extension-underline": "^2.6.0",
     "@tiptap/react": "^2.6.0",
     "@tiptap/starter-kit": "^2.6.0",
+    "@tiptap/suggestion": "^2.27.2",
     "active-win": "^7.1.0",
     "better-sqlite3": "^12.9.0",
     "class-variance-authority": "^0.7.1",
