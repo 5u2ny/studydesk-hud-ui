@@ -417,13 +417,13 @@ export default function App() {
   }
 
   if (!state) {
-    return (
-      <div className="h-full w-full p-3">
-        <div className="spotlight-surface h-full w-full rounded-2xl flex items-center justify-center text-white/40 text-xs">
-          Loading...
-        </div>
-      </div>
-    )
+    // Don't paint the Liquid-Glass spotlight-surface during the brief
+    // window between mount and first IPC response — that was the
+    // "translucent blue bar shows on launch" bug. The native notch
+    // pill (drawn by notch_helper.makePanel) stays visible regardless;
+    // returning a transparent placeholder keeps everything else off-
+    // screen until real state arrives.
+    return <div className="h-full w-full" />
   }
 
   const phaseLabel = PHASE_LABELS[state.phase]

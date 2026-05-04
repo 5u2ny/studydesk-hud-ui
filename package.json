@@ -4,7 +4,7 @@
   "description": "Local-first academic command center for students — courses, deadlines, capture, study, and critical alerts",
   "main": "dist/main/main/index.js",
   "scripts": {
-    "start": "npm run build && electron .",
+    "start": "npm run build && bash scripts/dev-rebrand.sh && electron .",
     "build": "npm run build:renderer && npm run build:main",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",

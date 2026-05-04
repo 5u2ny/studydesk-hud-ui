@@ -13,6 +13,14 @@ import { folderWatcherService } from './services/folders/folderWatcherService';
 process.on('uncaughtException',  (err)    => console.error('[main] Uncaught:', err.message));
 process.on('unhandledRejection', (reason) => console.error('[main] Unhandled rejection:', reason));
 
+// Force the user-facing app name. In packaged builds this comes from
+// package.json `productName`; in dev runs Electron defaults to its own
+// bundle name ("Electron"). Setting it here at least makes things like
+// notification source labels and the userData dir read "StudyDesk".
+// Dock-hover tooltip and menu-bar still come from the bundle Info.plist
+// — patched at npm-start time by scripts/dev-rebrand.sh.
+app.setName('StudyDesk');
+
 // Mark app as NOT quitting by default (used by notes window hide-on-close guard)
 (app as any).isQuitting = false;
 
