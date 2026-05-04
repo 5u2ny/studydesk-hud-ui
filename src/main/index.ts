@@ -1,4 +1,6 @@
-import { app, screen, globalShortcut, systemPreferences } from 'electron';
+import { app, screen, globalShortcut, systemPreferences, nativeImage } from 'electron';
+import * as path from 'path';
+import { existsSync } from 'fs';
 import { windowManager } from './windowManager';
 import { setupIPC } from './ipcHandlers';
 import { appTracker } from './appTracker';
@@ -14,9 +16,35 @@ process.on('unhandledRejection', (reason) => console.error('[main] Unhandled rej
 // Mark app as NOT quitting by default (used by notes window hide-on-close guard)
 (app as any).isQuitting = false;
 
+/** Resolve the bundled app icon. Works in both dev (assets/icon.png at repo
+ *  root) and packaged builds (Resources/icon.png next to the .app). */
+function resolveAppIcon(): string | null {
+  const candidates = [
+    path.join(__dirname, '..', '..', '..', 'assets', 'icon.png'),  // dev: dist/main/main → repo root
+    path.join(process.resourcesPath ?? '', 'assets', 'icon.png'),   // packaged
+    path.join(__dirname, '..', '..', 'assets', 'icon.png'),         // alt dev layout
+  ];
+  for (const p of candidates) {
+    if (p && existsSync(p)) return p;
+  }
+  return null;
+}
+
 app.whenReady().then(async () => {
   console.log('[main] App ready, platform:', process.platform);
+
+  // Set the dock icon explicitly so it's our logo even in dev runs.
+  // In a packaged .app, electron-builder uses assets/icon.icns from package.json
+  // build config — this runtime call is for `npm start` development.
   if (process.platform === 'darwin') {
+    const iconPath = resolveAppIcon();
+    if (iconPath) {
+      try {
+        app.dock?.setIcon(nativeImage.createFromPath(iconPath));
+      } catch (e: any) {
+        console.warn('[main] Failed to set dock icon:', e.message);
+      }
+    }
     app.dock?.hide();
   }
 

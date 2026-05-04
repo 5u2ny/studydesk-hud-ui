@@ -19,6 +19,23 @@ function getPreloadPath(name: string): string {
   return path.join(__dirname, '..', 'preload', `${name}.js`);
 }
 
+/** Resolve app icon for window taskbar/title bar. Returns the file path or
+ *  undefined if not found — Electron treats undefined as "use default". */
+function getWindowIcon(): string | undefined {
+  const candidates = [
+    path.join(__dirname, '..', '..', '..', 'assets', 'icon.png'),
+    path.join(process.resourcesPath ?? '', 'assets', 'icon.png'),
+    path.join(__dirname, '..', '..', 'assets', 'icon.png'),
+  ];
+  // require here to avoid top-of-file `fs` import churn — safe, runs once at boot
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const fs = require('fs') as typeof import('fs');
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return undefined;
+}
+
 function makeTrayIcon(progress: number, color: string): Electron.NativeImage {
   try {
     const size = 32, r = 12, cx = size / 2, cy = size / 2;
@@ -132,6 +149,7 @@ export class WindowManager {
       minWidth: 1024, minHeight: 640,
       x: workArea.x + 20, y: workArea.y + 30,
       title: 'StudyDesk Workspace',
+      icon: getWindowIcon(),
       frame: true, transparent: false,
       resizable: true, movable: true,
       // Don't show in dock as a separate app — pill owns the dock presence

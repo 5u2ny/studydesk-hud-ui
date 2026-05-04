@@ -36,14 +36,21 @@
   },
   "build": {
     "appId": "com.sunnysoni.focusos",
-    "productName": "Focus OS",
+    "productName": "StudyDesk",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "assets"
     },
     "mac": {
       "category": "public.app-category.productivity",
       "target": "dir",
-      "icon": null
+      "icon": "assets/icon.icns"
+    },
+    "win": {
+      "icon": "assets/icon.png"
+    },
+    "linux": {
+      "icon": "assets/icon.png"
     },
     "files": [
       "dist/**/*",
